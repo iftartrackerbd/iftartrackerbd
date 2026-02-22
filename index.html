@@ -29,6 +29,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .glass-panel { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.9); }
 .glass-header { background: rgba(4, 120, 87, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(16, 185, 129, 0.4); }
 
+/* 🔥 Google Maps Style Blue Dot for Current Location */
+.pulse-blue-dot {
+    width: 20px; height: 20px;
+    background-color: #4285F4;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 10px rgba(66, 133, 244, 0.8);
+    position: relative;
+    transform: translate(-50%, -50%);
+}
+.pulse-blue-dot::after {
+    content: '';
+    position: absolute;
+    width: 40px; height: 40px;
+    background-color: rgba(66, 133, 244, 0.4);
+    border-radius: 50%;
+    top: -13px; left: -13px;
+    animation: pulse 1.5s infinite ease-in-out;
+}
+@keyframes pulse { 0% {transform: scale(0.5); opacity: 1;} 100% {transform: scale(1.5); opacity: 0;} }
+
 /* 🔥 Dynamic Floating Pin (Scales on Zoom) */
 .map-text-marker { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 160px; transform-origin: bottom center; cursor: pointer; transition: transform 0.3s ease; transform: translate(-50%, -100%); }
 .map-text-marker .pin-icon { font-size: 38px; color: #ef4444; filter: drop-shadow(0 8px 6px rgba(0,0,0,0.6)); animation: bounceSoft 2.5s ease-in-out infinite; }
@@ -86,7 +107,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
         </button>
         <div id="distList" class="hidden absolute top-full left-0 mt-2 w-[240px] md:w-[300px] glass-panel rounded-2xl shadow-2xl z-[2000] overflow-hidden dropdown-anim border-2 border-emerald-200">
           <div class="p-2 border-b border-gray-200/50 bg-white/90 sticky top-0">
-            <input type="text" id="distSearch" oninput="filterList('distSearch','distUl')" placeholder="🔍 জেলা খুঁজুন (Bangla/English)..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
+            <input type="text" id="distSearch" oninput="filterList('distSearch','distUl')" placeholder="🔍 জেলা খুঁজুন..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
           </div>
           <ul id="distUl" class="max-h-56 overflow-y-auto text-xs md:text-sm text-gray-800 font-bold bg-white/80"></ul>
         </div>
@@ -99,7 +120,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
         </button>
         <div id="upzList" class="hidden absolute top-full right-0 mt-2 w-[240px] md:w-[300px] glass-panel rounded-2xl shadow-2xl z-[2000] overflow-hidden dropdown-anim border-2 border-emerald-200">
           <div class="p-2 border-b border-gray-200/50 bg-white/90 sticky top-0">
-            <input type="text" id="upzSearch" oninput="filterList('upzSearch','upzUl')" placeholder="🔍 উপজেলা খুঁজুন (Bangla/En)..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
+            <input type="text" id="upzSearch" oninput="filterList('upzSearch','upzUl')" placeholder="🔍 উপজেলা খুঁজুন..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
           </div>
           <ul id="upzUl" class="max-h-56 overflow-y-auto text-xs md:text-sm text-gray-800 font-bold bg-white/80">
             <li class="p-3 text-center text-gray-500">আগে জেলা নির্বাচন করুন</li>
@@ -140,9 +161,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
             <button onclick="cancelRoute()" class="bg-red-100 text-red-600 w-8 h-8 rounded-full shadow-md hover:bg-red-200 flex items-center justify-center flex-shrink-0 active:scale-90 transition-all"><i class="fas fa-times"></i></button>
         </div>
 
-        <!-- 🎯 Current Location Magic Button -->
-        <button onclick="manualLocTrigger()" class="absolute bottom-5 right-4 z-[400] glass-panel text-emerald-700 p-4 md:p-5 rounded-full shadow-xl border-2 border-white hover:bg-white/90 transition-all active:scale-90 flex items-center justify-center group bg-white/80">
-          <i class="fas fa-location-arrow text-2xl md:text-3xl group-hover:animate-pulse"></i>
+        <!-- 🎯 Current Location Magic Button (Manual trigger only) -->
+        <button onclick="manualLocTrigger()" class="absolute bottom-5 right-4 z-[400] glass-panel text-blue-600 p-4 md:p-5 rounded-full shadow-xl border-2 border-white hover:bg-white/90 transition-all active:scale-90 flex items-center justify-center group bg-white/80">
+          <i class="fas fa-crosshairs text-2xl md:text-3xl group-hover:animate-pulse"></i>
         </button>
         <div id="map" class="w-full h-full z-0"></div>
       </section>
@@ -227,7 +248,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
         </div>
         
         <div class="flex gap-2.5 text-sm">
-          <button onclick="startRouting()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(59,130,246,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-walking"></i> হাঁটার রুট</button>
+          <button onclick="startRouting()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(59,130,246,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-walking"></i> রুট দেখুন</button>
           <button onclick="openEdit()" class="flex-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-emerald-950 font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(234,179,8,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-edit"></i> এডিট</button>
           <button onclick="doShare()" class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(16,185,129,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-share-alt"></i> শেয়ার</button>
         </div>
@@ -240,7 +261,6 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
     <h2 class="text-xl font-extrabold text-gray-800 mb-5 flex items-center gap-2 px-1">
       <span class="relative flex h-4 w-4"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span></span>
       কাছাকাছি লাইভ ইফতার 📡 
-      <span id="feedLocationFilter" class="text-xs font-bold text-emerald-800 ml-auto bg-emerald-200 px-3 py-1.5 rounded-full border border-emerald-300 shadow-sm hidden"></span>
     </h2>
     <div id="feedContainer" class="space-y-4"></div>
   </section>
@@ -264,11 +284,11 @@ const __V__ = (function(){
   return { u: () => _sU, t: () => _tT, c: () => _tC, h: () => ({'apikey': _sK, 'Authorization': `Bearer ${_sK}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation'}) };
 })();
 
-// 🔥 Global Variables Correctly Declared ONCE
+// 🔥 Global Variables
 let map, markersGroup, clickMark, trackId, routeLine;
-let uLoc = {lat: 24.4696, lng: 88.3314}, isLocationVerified = false, mapMovedByUser = false, initialZoomDone = false;
+let uLoc = {lat: 24.4696, lng: 88.3314}, isLocationVerified = false, initialLocationSet = false;
 let selMapLoc = null, mosqBlob = null, foodBlob = null, feed = [], viewPost = null, cdInterval = null, userMarker = null;
-let activeRouteTarget = null, isRouteFirstDraw = true;
+let activeRouteTarget = null;
 let curAddr = "বাংলাদেশ", curDistStr = "", curUpzStr = ""; 
 let selDist = "", selUpz = "";
 let currentMaghribDate = null; 
@@ -279,7 +299,7 @@ const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 const { createClient } = supabase;
 const _client = createClient(__V__.u(), atob('c2JfcHVibGlzaGFibGVfZ0N3LXc4aEphMHlxbV94WmsyV3dOZ19MVmsxWjR6TA=='));
 
-// 🔥 ৬৪ জেলা ও উপজেলার ফুল ডাটাবেস (100% Uncut Tri-lingual search data)
+// 🔥 ৬৪ জেলা ও উপজেলার ফুল ডাটাবেস
 const GEO = {
   "ঢাকা | Dhaka": ["ঢাকা সদর | Dhaka Sadar", "সাভার | Savar", "ধামরাই | Dhamrai", "কেরানীগঞ্জ | Keraniganj", "নবাবগঞ্জ | Nawabganj", "দোহার | Dohar"],
   "গাজীপুর | Gazipur": ["গাজীপুর সদর | Gazipur Sadar", "কালিয়াকৈর | Kaliakair", "কালীগঞ্জ | Kaliganj", "কাপাসিয়া | Kapasia", "শ্রীপুর | Sreepur"],
@@ -363,41 +383,29 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 window.onload = async function() {
-  if(!isNetworkOk()) {
-      document.getElementById('locationStatus').innerHTML = "ইন্টারনেট নেই! 📍 ডিফল্ট: FF6V+G3 Baghchapa";
-      initMap();
-      return;
-  }
-
   let d = new Date();
   document.getElementById('headerDate').innerText = d.toLocaleDateString('bn-BD', {day:'numeric', month:'long'}).replace(/\d/g, x=>bnDigits[x]);
   
+  // ⚡ 1. Load from Cache First for instant rendering
+  let cachedLoc = localStorage.getItem('iftarTracker_uLoc');
+  if (cachedLoc) {
+      uLoc = JSON.parse(cachedLoc);
+      isLocationVerified = true;
+  }
+
   initMap();
   initDists();
   
-  // ⚡ Load from Cache First
   let cachedFeed = localStorage.getItem('iftarTracker_feed');
   if (cachedFeed) { feed = JSON.parse(cachedFeed); renderFeed(); renderPins(); }
   
-  // ⚡ Start Real-time Sync
+  // ⚡ 2. Start Real-time Sync & Tracking
   setupRealtime();
-  fetchFeed(); 
-
-  // 🎯 Auto Trigger Location
-  startLiveTracking(false);
+  if(isNetworkOk()) {
+      fetchFeed(); 
+      startLiveTracking(false); 
+  }
 };
-
-// 🧹 Auto-Delete Cache at Midnight (Fixed BD Time +6)
-function checkMidnightWipe() {
-    let bdTime = new Date(Date.now() + 6*3600000);
-    let todayStr = bdTime.toISOString().split('T')[0];
-    let lastDate = localStorage.getItem('iftarTracker_date');
-    if (lastDate !== todayStr) {
-        localStorage.removeItem('iftarTracker_feed');
-        localStorage.setItem('iftarTracker_date', todayStr);
-    }
-}
-checkMidnightWipe(); 
 
 function setupRealtime() {
     _client.channel('public:iftar_updates').on('postgres_changes', { event: '*', schema: 'public', table: 'iftar_updates' }, () => {
@@ -469,10 +477,6 @@ function startRouting() {
   isRouteFirstDraw = true;
 
   closeModal(); 
-  
-  // 🔥 Disable user map lock so camera follows route
-  mapMovedByUser = true; 
-
   document.getElementById('routeInfoOverlay').classList.remove('hidden');
   document.getElementById('routeInfoText').innerHTML = `<i class="fas fa-spinner fa-spin text-blue-500"></i> হাঁটার রাস্তা মাপা হচ্ছে...`;
 
@@ -519,6 +523,7 @@ async function updateRouteOnMap() {
         routeLine = L.polyline(route.geometry.coordinates.map(c=>[c[1],c[0]]), {color:'#2563eb', weight:6, opacity:0.9, className: 'route-line', dashArray: '10, 10'}).addTo(map);
         
         if(isRouteFirstDraw) {
+            // 🔥 Google Maps Style: Frame start and end perfectly without locking the map
             map.fitBounds(routeLine.getBounds(), {padding: [50, 50], maxZoom: 16});
             isRouteFirstDraw = false;
         }
@@ -585,17 +590,14 @@ function initMap() {
   });
   map.addLayer(markersGroup);
   
-  userMarker = L.marker([uLoc.lat, uLoc.lng], {
-    icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/1004/1004233.png', iconSize:[45,45]})
-  }).addTo(map);
+  // 🔥 Google Maps Style Blue Dot
+  let blueDot = L.divIcon({ className: 'custom-div-icon', html: `<div class="pulse-blue-dot"></div>`, iconSize:[0,0] });
+  userMarker = L.marker([uLoc.lat, uLoc.lng], {icon: blueDot, zIndexOffset: 1000}).addTo(map);
 
   map.on('zoomend', () => {
-     let z = map.getZoom();
-     map.getContainer().setAttribute('data-zoom', z);
+     map.getContainer().setAttribute('data-zoom', map.getZoom());
   });
   map.getContainer().setAttribute('data-zoom', map.getZoom()); 
-
-  map.on('movestart', () => { mapMovedByUser = true; });
 
   map.on('click', async e => {
     if(!isLocationVerified) return startLiveTracking(true);
@@ -639,15 +641,13 @@ function initMap() {
 }
 
 function manualLocTrigger() {
-    mapMovedByUser = false; 
     activeRouteTarget = null; 
     if(routeLine) map.removeLayer(routeLine);
     document.getElementById('routeInfoOverlay').classList.add('hidden');
     
     if (uLoc && uLoc.lat) {
-        map.flyTo([uLoc.lat, uLoc.lng], 18, {animate:true, duration: 1});
+        map.flyTo([uLoc.lat, uLoc.lng], 18, {animate:true, duration: 1}); // 🎯 Fly once, don't lock
     }
-    startLiveTracking(true);
 }
 
 function requestLocationPrompt() {
@@ -664,22 +664,24 @@ function startLiveTracking(isManual = false) {
       uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
       userMarker.setLatLng([uLoc.lat, uLoc.lng]);
       
-      if(!initialZoomDone || isManual || (!mapMovedByUser && !activeRouteTarget)) {
-          map.flyTo([uLoc.lat, uLoc.lng], 20, {duration: 1.5});
-          initialZoomDone = true;
+      // 🔥 Fly only once on initial load. Do not lock the map!
+      if(!initialLocationSet) {
+          map.flyTo([uLoc.lat, uLoc.lng], 18, {duration: 1});
+          initialLocationSet = true;
+          reverseGeocode(uLoc.lat, uLoc.lng, true);
       }
       
       document.getElementById('locationStatus').innerHTML = "📍 লাইভ ট্র্যাকিং অন!";
       loadCountdown(uLoc.lat, uLoc.lng);
-      reverseGeocode(uLoc.lat, uLoc.lng, true);
-      renderFeed();
+      
+      renderFeed(); // Dynamically update feed distances
       
       if(activeRouteTarget) throttledUpdateRoute();
 
   }, (err) => {
       document.getElementById('locationStatus').innerHTML = "📍 ডিফল্ট: FF6V+G3 Baghchapa";
       if(isManual) toast("⚠️ ফোনে GPS লোকেশন অন করুন!");
-  }, {enableHighAccuracy: true, timeout: 20000});
+  }, {enableHighAccuracy: true, timeout: 10000, maximumAge: 5000}); // Fast response settings
 }
 
 // ⏱️ Advanced Aladhan Countdown & Notifications
@@ -765,14 +767,15 @@ async function reverseGeocode(lat, lng, prioritize = false) {
     let d = await r.json();
     curAddr = d.display_name;
     if(prioritize && d.address) {
-      let dist = (d.address.state || "").replace(' জেলা', '').trim();
-      let upz = (d.address.suburb || d.address.town || d.address.city || "").replace(' উপজেলা', '').replace(' Upazila', '').trim();
+      // Robust Matching for UI Dropdown
+      let apiState = d.address.state || d.address.region || "";
+      let apiCounty = d.address.county || d.address.suburb || d.address.town || d.address.city || "";
       
-      let matchedDist = Object.keys(GEO).find(k => k.includes(curDistStr));
+      let matchedDist = Object.keys(GEO).find(k => k.toLowerCase().includes(apiState.toLowerCase().replace(' district', '')));
       if(matchedDist) {
           selDist = matchedDist.split('|')[0].trim();
           document.getElementById('distBtnText').innerText = selDist;
-          let matchedUpz = GEO[matchedDist].find(u => u.includes(curUpzStr));
+          let matchedUpz = GEO[matchedDist].find(u => u.toLowerCase().includes(apiCounty.toLowerCase().replace(' upazila', '')));
           if(matchedUpz) {
               selUpz = matchedUpz.split('|')[0].trim();
               document.getElementById('upzBtnText').innerText = selUpz;
@@ -900,8 +903,9 @@ function renderFeed() {
   let c = document.getElementById('feedContainer');
   let filterEl = document.getElementById('feedLocationFilter');
   
-  let fFeed = selUpz ? feed.filter(p => p.mosques?.address && p.mosques.address.includes(selUpz)) : feed;
-  if(selUpz) { filterEl.innerText = `(${selUpz})`; filterEl.classList.remove('hidden'); } 
+  // Show ALL data globally sorted by nearest, ignore strict dropdown filter so it doesn't blank out!
+  let fFeed = feed; 
+  if(selUpz) { filterEl.innerText = `(কাছাকাছি)`; filterEl.classList.remove('hidden'); } 
   else { filterEl.classList.add('hidden'); }
 
   fFeed = fFeed.map(p => {
@@ -910,7 +914,7 @@ function renderFeed() {
       return {...p, distKm};
   }).sort((a,b) => a.distKm - b.distKm);
 
-  if(!fFeed.length) { c.innerHTML = '<p class="text-center p-8 font-bold text-gray-400">আজ কোনো ইফতার নেই!</p>'; return; }
+  if(!fFeed.length) { c.innerHTML = '<div class="text-center p-8 bg-white rounded-3xl"><i class="fas fa-box-open text-4xl text-gray-300 mb-3"></i><p class="text-sm font-bold text-gray-500">আজ কোনো ইফতার নেই!</p></div>'; return; }
   
   c.innerHTML = fFeed.map(p => {
     let bnDist = (p.distKm < 1 ? (p.distKm*1000).toFixed(0) + ' মি.' : p.distKm.toFixed(2) + ' কি.মি.').replace(/\d/g, x=>bnDigits[x]);
