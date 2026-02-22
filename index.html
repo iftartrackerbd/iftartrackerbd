@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
 <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<!-- Supabase JS for Realtime -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- FontAwesome & Tailwind & Confetti -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -45,10 +47,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .toast{position:fixed; top: 2rem; left:50%; transform:translateX(-50%); background:rgba(6, 78, 59, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(16, 185, 129, 0.5); color:#fff; font-size:13px; font-weight:700; padding:1rem 1.5rem; border-radius:9999px; box-shadow:0 10px 25px rgba(0,0,0,.3); z-index:9999; white-space:nowrap; animation:toastDrop .4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards}
 @keyframes toastDrop { from { top: -2rem; opacity: 0; } to { top: 2rem; opacity: 1; } }
 
+/* Route Animation */
 .route-line { animation: dash 20s linear infinite; }
 @keyframes dash { to { stroke-dashoffset: -1000; } }
 
-input, textarea { color: #1f2937 !important; }
+input, textarea { color: #1f2937 !important; background: white !important; }
 input::placeholder, textarea::placeholder { color: #9ca3af !important; }
 </style>
 </head>
@@ -68,6 +71,8 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
   <!-- 🔍 Ultimate Trilingual Search Section -->
   <div class="p-3 w-full md:max-w-2xl mx-auto space-y-2 relative">
     <div class="flex gap-2 relative">
+      
+      <!-- District Dropdown -->
       <div class="relative w-1/2" id="distContainer">
         <button type="button" onclick="toggleDD('distList')" class="w-full bg-white/20 backdrop-blur-md text-white text-xs md:text-sm p-3 rounded-xl border border-white/30 outline-none flex justify-between items-center shadow-inner hover:bg-white/30 transition-colors">
           <span id="distBtnText" class="truncate font-bold">জেলা নির্বাচন</span>
@@ -81,6 +86,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
         </div>
       </div>
 
+      <!-- Upazila Dropdown -->
       <div class="relative w-1/2" id="upzContainer">
         <button type="button" onclick="toggleDD('upzList')" id="upzBtn" class="w-full bg-white/20 backdrop-blur-md text-white text-xs md:text-sm p-3 rounded-xl border border-white/30 outline-none flex justify-between items-center shadow-inner opacity-50 cursor-not-allowed" disabled>
           <span id="upzBtnText" class="truncate font-bold">উপজেলা</span>
@@ -113,7 +119,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
 <main class="w-full md:max-w-2xl mx-auto relative px-2 md:px-4">
   
   <!-- 🗺️ Map Section (Framed & Responsive) -->
-  <div class="mt-4">
+  <div class="mt-4 relative">
       <section class="relative w-full h-[55vh] md:h-[65vh] bg-gray-200 z-0 border-[6px] border-white/80 rounded-[2rem] shadow-[0_15px_30px_rgba(0,0,0,0.2)] overflow-hidden box-border">
         
         <div class="absolute top-3 left-1/2 transform -translate-x-1/2 z-[400] glass-panel px-5 py-2.5 rounded-full shadow-lg border border-white/50 flex flex-col items-center gap-1 pointer-events-none w-[90%] md:w-[60%] justify-center">
@@ -123,14 +129,20 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
           </div>
         </div>
 
-        <button onclick="requestLocationPrompt()" class="absolute bottom-5 right-4 z-[400] glass-panel text-emerald-700 p-4 md:p-5 rounded-full shadow-xl border-2 border-white hover:bg-white/90 transition-all active:scale-90 flex items-center justify-center group bg-white/80">
+        <!-- 🔥 Floating Live Route UI Over Map -->
+        <div id="routeInfoOverlay" class="hidden absolute top-16 left-1/2 transform -translate-x-1/2 z-[500] bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-2xl border-2 border-blue-400 w-[90%] md:w-[60%] flex justify-between items-center">
+            <div id="routeInfoText" class="text-xs md:text-sm font-bold text-blue-900 flex flex-col gap-1"></div>
+            <button onclick="cancelRoute()" class="bg-red-100 text-red-600 w-8 h-8 rounded-full shadow-md hover:bg-red-200 flex items-center justify-center flex-shrink-0 active:scale-90 transition-all"><i class="fas fa-times"></i></button>
+        </div>
+
+        <button onclick="manualLocTrigger()" class="absolute bottom-5 right-4 z-[400] glass-panel text-emerald-700 p-4 md:p-5 rounded-full shadow-xl border-2 border-white hover:bg-white/90 transition-all active:scale-90 flex items-center justify-center group bg-white/80">
           <i class="fas fa-location-arrow text-2xl md:text-3xl group-hover:animate-pulse"></i>
         </button>
         <div id="map" class="w-full h-full z-0"></div>
       </section>
   </div>
 
-  <!-- 📝 Hidden Form (Glassmorphism + Phone Number) -->
+  <!-- 📝 Hidden Form -->
   <section id="formSection" class="hidden absolute bottom-0 left-0 w-full glass-panel rounded-t-[2.5rem] p-6 md:p-8 shadow-[0_-20px_50px_rgba(0,0,0,0.2)] z-[500] border-t-2 border-white overflow-y-auto max-h-[85vh]">
     <div class="flex justify-between items-center mb-5">
       <h2 id="formTitle" class="text-xl font-extrabold text-emerald-900 flex items-center gap-2">
@@ -194,13 +206,6 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
       <div class="p-6">
         <h2 id="viewMosqueName" class="text-2xl font-extrabold text-emerald-950 mb-1 leading-tight"></h2>
         <p class="text-sm text-gray-700 mb-5 flex items-start gap-1.5 font-medium"><i class="fas fa-map-marker-alt mt-1 text-emerald-600"></i> <span id="viewAddress"></span></p>
-        
-        <!-- 🔥 Live Distance & Direction UI inside Modal -->
-        <div id="modalDistDisplay" class="hidden bg-white/80 text-blue-900 text-sm font-extrabold p-4 rounded-2xl mb-5 border border-blue-200 shadow-md">
-           <div id="modalDistVal" class="flex flex-col gap-1.5 items-center">
-              <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i> রাস্তা মাপা হচ্ছে...
-           </div>
-        </div>
 
         <div class="bg-white/80 p-5 rounded-2xl border border-white mb-5 shadow-md">
           <p class="text-xs font-extrabold text-emerald-600 mb-3 uppercase tracking-wide border-b border-emerald-100 pb-1.5">আজকের মেন্যু ও দাতা</p>
@@ -216,7 +221,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
         </div>
         
         <div class="flex gap-2.5 text-sm">
-          <button onclick="showModalDistance()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(59,130,246,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-route"></i> দূরত্ব</button>
+          <button onclick="startRouting()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(59,130,246,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-route"></i> রুট দেখুন</button>
           <button onclick="openEdit()" class="flex-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-emerald-950 font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(234,179,8,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-edit"></i> এডিট</button>
           <button onclick="doShare()" class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(16,185,129,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-share-alt"></i> শেয়ার</button>
         </div>
@@ -225,7 +230,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
   </div>
 
   <!-- Live Feed Section -->
-  <section class="mt-8 mb-10">
+  <section class="mt-8 mb-10 px-2">
     <h2 class="text-xl font-extrabold text-gray-800 mb-5 flex items-center gap-2 px-1">
       <span class="relative flex h-4 w-4"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span></span>
       কাছাকাছি লাইভ ইফতার 📡 
@@ -242,13 +247,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af !important; }
 </main>
 
 <script>
-/* 🔐 Anti-DevTools & Performance Setup */
-(function(){
-  let _dv = false; let _t = /./; _t.toString = function(){ _dv = true; return ''; };
-  setInterval(function(){ try{ console.profile(); console.profileEnd(); if(window.console && window.console.firebug){ console.clear(); } }catch(e){} }, 2000);
-})();
-
-// 🚨 অরিজিনাল API Keys (Base64 Encoded) 🚨
+/* ═══════════════════════════════════════════════════════
+   🔐 GLOBAL STEALTH KEYS & STATE
+   ═══════════════════════════════════════════════════════ */
 const __V__ = (function(){
   const _sU = atob('aHR0cHM6Ly91cGZjb2Ztc3dzbmNyd2l6ZXl3dy5zdXBhYmFzZS5jbw=='); 
   const _sK = atob('c2JfcHVibGlzaGFibGVfZ0N3LXc4aEphMHlxbV94WmsyV3dOZ19MVmsxWjR6TA=='); 
@@ -257,18 +258,21 @@ const __V__ = (function(){
   return { u: () => _sU, t: () => _tT, c: () => _tC, h: () => ({'apikey': _sK, 'Authorization': `Bearer ${_sK}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation'}) };
 })();
 
-// --- Global Variables ---
+// 🔥 Global Variables Restored Here to prevent ReferenceErrors!
 let map, markersGroup, clickMark, trackId, routeLine;
-let uLoc = {lat: 24.4716, lng: 88.3306}; // Default Baradma Fallback
-let curAddr = "বাংলাদেশ", curDistStr = "", curUpzStr = "";
-let selMapLoc = null, mosqBlob = null, foodBlob = null;
-let feed = [], viewPost = null, cdInterval = null;
-let userMarker = null;
-let isLocationVerified = false; 
+let uLoc = {lat: 24.4716, lng: 88.3306}, isLocationVerified = false, mapMovedByUser = false;
+let selMapLoc = null, mosqBlob = null, foodBlob = null, feed = [], viewPost = null, cdInterval = null, userMarker = null;
+let activeRouteTarget = null, isRouteFirstDraw = true;
+let curAddr = "বাংলাদেশ", curDistStr = "", curUpzStr = ""; // RESTORED THESE!
+let selDist = "", selUpz = "";
 
 const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
 
-// 🔥 ৬৪ জেলা ও উপজেলার ফুল ডাটাবেস
+// 🔥 Real-Time Client
+const { createClient } = supabase;
+const _client = createClient(__V__.u(), atob('c2JfcHVibGlzaGFibGVfZ0N3LXc4aEphMHlxbV94WmsyV3dOZ19MVmsxWjR6TA=='));
+
+// 🔥 ৬৪ জেলা ও উপজেলার ফুল ডাটাবেস (100% Uncut)
 const GEO = {
   "ঢাকা | Dhaka": ["ঢাকা সদর | Dhaka Sadar", "সাভার | Savar", "ধামরাই | Dhamrai", "কেরানীগঞ্জ | Keraniganj", "নবাবগঞ্জ | Nawabganj", "দোহার | Dohar"],
   "গাজীপুর | Gazipur": ["গাজীপুর সদর | Gazipur Sadar", "কালিয়াকৈর | Kaliakair", "কালীগঞ্জ | Kaliganj", "কাপাসিয়া | Kapasia", "শ্রীপুর | Sreepur"],
@@ -336,71 +340,301 @@ const GEO = {
   "সুনামগঞ্জ | Sunamganj": ["সুনামগঞ্জ সদর | Sunamganj Sadar", "দক্ষিণ সুনামগঞ্জ | Dakshin Sunamganj", "বিশ্বম্ভরপুর | Bishwamvarpur", "ছাতক | Chhatak", "দোয়ারাবাজার | Dowarabazar", "তাহিরপুর | Tahirpur", "জামালগঞ্জ | Jamalganj", "দিরাই | Derai", "শাল্লা | Shalla", "ধর্মপাশা | Dharmapasha", "মধ্যনগর | Madhyanagar"]
 };
 
-function isNetworkOk() {
-   if(!navigator.onLine) { toast("❌ ইন্টারনেট কানেকশন নেই! ক্যাশ ডেটা দেখানো হচ্ছে।"); return false; }
-   return true;
-}
-
-// 🧹 Auto-Delete Cache at Midnight Frontend Trick
-function checkMidnightWipe() {
-    let todayStr = new Date().toISOString().split('T')[0];
-    let lastDate = localStorage.getItem('iftarTracker_date');
-    if (lastDate !== todayStr) {
-        localStorage.removeItem('iftarTracker_feed');
-        localStorage.removeItem('iftarTracker_feed_time');
-        localStorage.setItem('iftarTracker_date', todayStr);
-    }
-}
+// --- 🔥 CORE FUNCTIONS ---
 
 window.onload = async function() {
-  checkMidnightWipe();
-  
   let d = new Date();
   document.getElementById('headerDate').innerText = d.toLocaleDateString('bn-BD', {day:'numeric', month:'long'}).replace(/\d/g, x=>bnDigits[x]);
   
   initMap();
   initDists();
   
-  // ⚡ 18 Crore Users Hack: Smart LocalStorage Cache (5 mins)
+  // ⚡ 1. Load from Cache First
   let cachedFeed = localStorage.getItem('iftarTracker_feed');
-  let cacheTime = localStorage.getItem('iftarTracker_feed_time');
+  if (cachedFeed) { feed = JSON.parse(cachedFeed); renderFeed(); renderPins(); }
   
-  if (cachedFeed && cacheTime && (Date.now() - parseInt(cacheTime) < 300000)) {
-      feed = JSON.parse(cachedFeed);
-      renderFeed(); renderPins();
-  } else {
-      if(isNetworkOk()) await fetchFeed(); 
-  }
-  
-  let targetId = new URLSearchParams(window.location.search).get('id');
-  if(targetId) setTimeout(() => openViewModal(targetId, true), 1000);
-  
-  let savedLoc = localStorage.getItem('iftarTracker_uLoc');
-  if(savedLoc) {
-     uLoc = JSON.parse(savedLoc);
-     isLocationVerified = true;
-     map.setView([uLoc.lat, uLoc.lng], 16);
-     if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
-     document.getElementById('locationStatus').innerHTML = "📍 সেভ করা এলাকা";
-     loadCountdown(uLoc.lat, uLoc.lng);
-     if(isNetworkOk()) reverseGeocode(uLoc.lat, uLoc.lng, true);
-     
-     if(navigator.geolocation) {
-         trackId = navigator.geolocation.watchPosition(pos => {
-             isLocationVerified = true;
-             uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-             if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
-             if(!document.getElementById('modalDistDisplay').classList.contains('hidden')) throttledUpdateModalDistance();
-             renderFeed(); 
-         }, ()=>{}, {enableHighAccuracy: true, maximumAge: 5000, timeout: 15000});
-     }
-  } else {
-     map.setView([uLoc.lat, uLoc.lng], 16);
-     document.getElementById('locationStatus').innerHTML = "ম্যাপ রেডি। 🎯 বাটনে ক্লিক করে লোকেশন অন করুন!";
-     loadCountdown(uLoc.lat, uLoc.lng); 
-     toast("সঠিক ইফতার পেতে লোকেশন পারমিশন দিন 🎯", 5000);
-  }
+  // ⚡ 2. Start Real-time Sync
+  setupRealtime();
+  fetchFeed(); 
+
+  // 🎯 3. Auto Trigger Location
+  startLiveTracking(false);
 };
+
+function setupRealtime() {
+    _client.channel('public:iftar_updates').on('postgres_changes', { event: '*', table: 'iftar_updates' }, () => {
+        localStorage.removeItem('iftarTracker_feed'); // Cache bust
+        fetchFeed(); 
+        toast("📢 নতুন ইফতার আপডেট এসেছে!");
+    }).subscribe();
+}
+
+async function openViewModal(pid, fly = false) {
+  viewPost = feed.find(p => p.id === pid); if(!viewPost) return;
+  if(fly && viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 19, {animate:true});
+  
+  document.getElementById('viewModal').classList.remove('hidden');
+  document.getElementById('viewMosqueName').innerText = viewPost.mosques?.name || '';
+  document.getElementById('viewAddress').innerText = viewPost.mosques?.address || '';
+  document.getElementById('viewItems').innerText = viewPost.items;
+  
+  document.getElementById('viewMosqueImg').classList.add('hidden'); document.getElementById('mosqueImgLoader').classList.remove('hidden');
+  if(viewPost.mosques?.image_url) { let url = await getTgImg(viewPost.mosques.image_url); if(url) { document.getElementById('viewMosqueImg').src = url; document.getElementById('viewMosqueImg').classList.remove('hidden'); } }
+  document.getElementById('mosqueImgLoader').classList.add('hidden');
+  
+  let fs = document.getElementById('foodImgSection');
+  if(viewPost.food_image_url) {
+    fs.classList.remove('hidden'); let fu = await getTgImg(viewPost.food_image_url); if(fu) document.getElementById('viewFoodImg').src = fu;
+  } else fs.classList.add('hidden');
+}
+
+function openEdit() {
+  if(!viewPost) return; 
+  if(!isLocationVerified) return requestLocationPrompt(); 
+  if(!checkGeofence(viewPost.mosques.lat, viewPost.mosques.lng)) return toast("❌ আপনি এই স্থান থেকে ১ কি.মি. এর বাইরে আছেন। এডিট করা যাবে না!"); 
+  
+  closeModal();
+  document.getElementById('editMosqueId').value = viewPost.mosques?.id || '';
+  document.getElementById('mosqueName').value = viewPost.mosques?.name || ''; document.getElementById('mosqueName').disabled = true;
+  
+  let itmTxt = viewPost.items, pName = "", pPhone = "";
+  if(itmTxt.startsWith('দাতা: ')) { 
+      let parts = itmTxt.split('\nমেন্যু: '); 
+      let topRow = parts[0].replace('দাতা: ', '').trim();
+      let phoneSplit = topRow.split(' 📞 ');
+      pName = phoneSplit[0] || '';
+      pPhone = phoneSplit[1] || '';
+      itmTxt = parts[1] || ''; 
+  }
+  document.getElementById('providerName').value = pName; document.getElementById('providerName').disabled = true; 
+  document.getElementById('providerPhone').value = pPhone; document.getElementById('providerPhone').disabled = true; 
+  document.getElementById('iftarItems').value = itmTxt;
+  document.getElementById('mosqueImgReq').innerText = '(ঐচ্ছিক)';
+  document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit text-yellow-500"></i> ইফতার আপডেট করুন';
+  document.getElementById('formSection').classList.remove('hidden');
+  if(viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 18, {animate:true});
+}
+
+// 🔥 FLOATING REAL-TIME ROUTE LOGIC
+function startRouting() {
+  if(!viewPost || !viewPost.mosques || !viewPost.mosques.lat) return toast("লোকেশন পাওয়া যায়নি!");
+  if(!isLocationVerified) return startLiveTracking(true);
+
+  activeRouteTarget = { lat: viewPost.mosques.lat, lng: viewPost.mosques.lng };
+  isRouteFirstDraw = true;
+
+  closeModal(); 
+
+  document.getElementById('routeInfoOverlay').classList.remove('hidden');
+  document.getElementById('routeInfoText').innerHTML = `<i class="fas fa-spinner fa-spin text-blue-500"></i> রাস্তা মাপা হচ্ছে...`;
+
+  updateRouteOnMap();
+}
+
+function cancelRoute() {
+  activeRouteTarget = null;
+  if(routeLine) map.removeLayer(routeLine);
+  document.getElementById('routeInfoOverlay').classList.add('hidden');
+}
+
+let lastRouteTime = 0;
+async function throttledUpdateRoute() {
+  let now = Date.now();
+  if(now - lastRouteTime < 5000) return;
+  lastRouteTime = now;
+  await updateRouteOnMap();
+}
+
+async function updateRouteOnMap() {
+  if(!activeRouteTarget) return;
+  let tLat = activeRouteTarget.lat, tLng = activeRouteTarget.lng;
+  try {
+    let r = await fetch(`https://router.project-osrm.org/route/v1/driving/${uLoc.lng},${uLoc.lat};${tLng},${tLat}?overview=full&geometries=geojson`);
+    let data = await r.json();
+    if(data.routes[0]) {
+        let route = data.routes[0];
+        let bnD = (route.distance/1000).toFixed(2).replace(/\d/g, x=>bnDigits[x]);
+        let bnT = Math.ceil(route.duration/60).toString().replace(/\d/g, x=>bnDigits[x]);
+        
+        document.getElementById('routeInfoText').innerHTML = `<div class="flex items-center gap-2 text-blue-800"><i class="fas fa-car text-blue-600 text-lg"></i> রুট: ${bnD} কি.মি.</div><div class="flex items-center gap-2 text-gray-700 mt-0.5"><i class="fas fa-clock text-blue-500"></i> সময়: ~${bnT} মিনিট</div>`;
+        
+        if(routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(route.geometry.coordinates.map(c=>[c[1],c[0]]), {color:'#2563eb', weight:6, opacity:0.9, className: 'route-line'}).addTo(map);
+        
+        if(isRouteFirstDraw) {
+            map.fitBounds(routeLine.getBounds(), {padding: [50, 50]});
+            isRouteFirstDraw = false;
+        }
+    }
+  } catch(e) { 
+      let d = (L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng))/1000).toFixed(2).replace(/\d/g, x=>bnDigits[x]);
+      document.getElementById('routeInfoText').innerHTML = `<span class="text-blue-800">✈️ সোজা দূরত্ব: ${d} কি.মি.</span>`; 
+  }
+}
+
+function doShare() {
+  let link = window.location.origin + window.location.pathname + "?id=" + viewPost.id;
+  let text = `🍲 ${viewPost.mosques.name} এ আজ ইফতার আছে!\n${viewPost.items}\nলিংক: ${link}`;
+  if(navigator.share) navigator.share({title: 'Iftar Tracker BD', text: text, url: link});
+  else { navigator.clipboard.writeText(text); toast("📋 কপি করা হয়েছে!"); }
+}
+
+async function uploadToTg(blob, fn) {
+  let fd = new FormData(); fd.append('chat_id', __V__.c()); fd.append('photo', blob, fn);
+  let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/sendPhoto', {method:'POST', body:fd});
+  let d = await r.json(); return d.ok ? d.result.photo.pop().file_id : null;
+}
+
+async function getTgImg(fid) {
+  if(!fid) return null;
+  try {
+    let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/getFile?file_id='+fid);
+    let d = await r.json(); return d.ok ? 'https://api.telegram.org/file/bot'+__V__.t()+'/'+d.result.file_path : null;
+  } catch(e){ return null; }
+}
+
+async function handleImg(input, type) {
+    let file = input.files[0]; if(!file) return;
+    document.getElementById(type+'ImageLabel').style.borderColor = "#10b981";
+    let reader = new FileReader(); reader.readAsDataURL(file);
+    reader.onload = e => {
+        let img = new Image(); img.src = e.target.result;
+        img.onload = () => {
+            let cv = document.createElement('canvas'); let ctx = cv.getContext('2d');
+            cv.width = 800; cv.height = (img.height * 800) / img.width;
+            ctx.drawImage(img, 0, 0, 800, cv.height);
+            cv.toBlob(b => { if(type==='mosque') mosqBlob=b; else foodBlob=b; }, 'image/webp', 0.7);
+        }
+    }
+}
+
+// --- Map & Logic ---
+
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([uLoc.lat, uLoc.lng], 16); 
+  L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
+  
+  markersGroup = L.markerClusterGroup({
+      maxClusterRadius: 40,
+      iconCreateFunction: (c) => L.divIcon({ html: `<div class="custom-cluster-icon w-12 h-12">${c.getChildCount()}</div>`, className: '', iconSize: [48, 48] })
+  });
+  map.addLayer(markersGroup);
+  
+  userMarker = L.marker([uLoc.lat, uLoc.lng], {
+    icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/1004/1004233.png', iconSize:[45,45]})
+  }).addTo(map);
+
+  map.on('movestart', () => { mapMovedByUser = true; });
+
+  map.on('click', async e => {
+    if(!isLocationVerified) return startLiveTracking(true);
+    let lat = e.latlng.lat, lng = e.latlng.lng;
+    
+    let snapped = feed.find(p => p.mosques?.lat && L.latLng(lat, lng).distanceTo(L.latLng(p.mosques.lat, p.mosques.lng)) < 30);
+    if(snapped) return openViewModal(snapped.id, true);
+
+    if(L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(lat, lng)) > 1000) return toast("❌ আপনি অনেক দূরে! ১ কি.মি.-এর ভেতরে অ্যাড করুন।");
+
+    selMapLoc = {lat, lng};
+    document.getElementById('editMosqueId').value = '';
+    document.getElementById('mosqueName').value = e.autoName || '';
+    document.getElementById('mosqueName').disabled = false;
+    document.getElementById('providerName').disabled = false;
+    document.getElementById('providerName').value = '';
+    document.getElementById('providerPhone').value = ''; 
+    document.getElementById('mosqueImgReq').innerText = '*';
+    document.getElementById('formTitle').innerHTML = '<i class="fas fa-map-pin text-red-500"></i> নতুন ইফতার যোগ করুন';
+    document.getElementById('submitBtnText').innerText = 'লোকেশন সেভ করুন 🚀';
+    
+    document.getElementById('formSection').classList.remove('hidden');
+    if(clickMark) map.removeLayer(clickMark);
+    
+    let aIcon = L.divIcon({ className: 'custom-pin', html: `<i class="fas fa-map-marker-alt fa-3x" style="color: #ef4444;"></i>`, iconSize: [40, 40], iconAnchor: [20, 40] });
+    clickMark = L.marker([lat, lng], {icon: aIcon}).addTo(map);
+    
+    try {
+      let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
+      let d = await r.json();
+      if(!e.autoName) document.getElementById('mosqueName').value = d.address?.amenity || '';
+      curAddr = d.display_name;
+    } catch(err){}
+    document.getElementById('formSection').scrollIntoView({behavior: 'smooth'});
+  });
+}
+
+function manualLocTrigger() {
+    mapMovedByUser = false; 
+    startLiveTracking(true);
+}
+
+function requestLocationPrompt() {
+    toast("লোকেশন পারমিশন দিন 🎯", 3000);
+    startLiveTracking(true);
+}
+
+function startLiveTracking(isManual = false) {
+  if(!navigator.geolocation) return toast("GPS সাপোর্ট করে না!");
+  document.getElementById('locationStatus').innerHTML = "লোকেশন খোঁজা হচ্ছে... 🛰️";
+
+  trackId = navigator.geolocation.watchPosition(pos => {
+      isLocationVerified = true;
+      uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      userMarker.setLatLng([uLoc.lat, uLoc.lng]);
+      
+      if(!mapMovedByUser && !activeRouteTarget) map.flyTo([uLoc.lat, uLoc.lng], 20, {duration: 1.5});
+      
+      document.getElementById('locationStatus').innerHTML = "📍 লাইভ ট্র্যাকিং অন!";
+      loadCountdown(uLoc.lat, uLoc.lng);
+      reverseGeocode(uLoc.lat, uLoc.lng, true);
+      renderFeed();
+      
+      if(activeRouteTarget) throttledUpdateRoute();
+
+  }, (err) => {
+      document.getElementById('locationStatus').innerHTML = "📍 ডিফল্ট: বারাদমা বাজার";
+      if(isManual) toast("⚠️ ফোনে GPS লোকেশন অন করুন!");
+  }, {enableHighAccuracy: true, timeout: 20000});
+}
+
+// --- Helpers & Required Functions Restored ---
+
+async function flyToAdminArea(query, zoomLevel) {
+  try {
+    document.getElementById('locationStatus').innerHTML = "ম্যাপে খোঁজা হচ্ছে... 🚁";
+    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+    let d = await r.json();
+    if(d && d.length > 0) {
+      map.flyTo([d[0].lat, d[0].lon], zoomLevel, { animate: true, duration: 1.5 });
+      document.getElementById('locationStatus').innerHTML = "📍 " + d[0].display_name.split(',')[0];
+    }
+  } catch(e) {}
+}
+
+async function reverseGeocode(lat, lng, prioritize = false) {
+  try {
+    let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
+    let d = await r.json();
+    curAddr = d.display_name;
+    if(prioritize && d.address) {
+      curDistStr = (d.address.state || "").replace(' জেলা', '').trim();
+      curUpzStr = (d.address.suburb || d.address.town || d.address.city || "").replace(' উপজেলা', '').replace(' Upazila', '').trim();
+      let matchedDist = Object.keys(GEO).find(k => k.includes(curDistStr));
+      if(matchedDist) {
+          selDist = matchedDist.split('|')[0].trim();
+          document.getElementById('distBtnText').innerText = selDist;
+          let matchedUpz = GEO[matchedDist].find(u => u.includes(curUpzStr));
+          if(matchedUpz) {
+              selUpz = matchedUpz.split('|')[0].trim();
+              document.getElementById('upzBtnText').innerText = selUpz;
+              document.getElementById('upzBtn').disabled = false;
+              document.getElementById('upzBtn').classList.remove('opacity-50');
+              document.getElementById('villageInput').disabled = false;
+          }
+      }
+      fetchNearbyMosques(lat, lng);
+    }
+  } catch(e){}
+}
 
 // --- API Suggest Nearby Mosques ---
 async function fetchNearbyMosques(lat, lng) {
@@ -426,34 +660,6 @@ function flyAndOpenForm(lat, lng, name) {
    map.fire('click', {latlng: {lat: lat, lng: lng}, autoName: name});
 }
 
-// --- Priority Location & Tri-Lingual Dropdown Logic ---
-async function flyToAdminArea(query, zoomLevel) {
-  try {
-    document.getElementById('locationStatus').innerHTML = "ম্যাপে খোঁজা হচ্ছে... 🚁";
-    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
-    let d = await r.json();
-    if(d && d.length > 0) {
-      map.flyTo([d[0].lat, d[0].lon], zoomLevel, { animate: true, duration: 1.5 });
-      document.getElementById('locationStatus').innerHTML = "📍 " + d[0].display_name.split(',')[0];
-    }
-  } catch(e) {}
-}
-
-async function reverseGeocode(lat, lng, prioritize = false) {
-  try {
-    let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
-    let d = await r.json();
-    curAddr = d.display_name;
-    
-    if(prioritize && d.address) {
-      curDistStr = (d.address.state || d.address.county || "").replace(' জেলা', '').replace(' District', '').trim();
-      curUpzStr = (d.address.suburb || d.address.town || d.address.city || "").replace(' উপজেলা', '').replace(' Upazila', '').trim();
-      initDists(true); 
-      fetchNearbyMosques(lat, lng);
-    }
-  } catch(e){}
-}
-
 function getBnName(fullStr) { return fullStr.split('|')[0].trim(); }
 
 function mkLi(fullText, cb, isPriority = false) {
@@ -470,7 +676,6 @@ function initDists(priority = false) {
   let ul = document.getElementById('distUl'); ul.innerHTML = '';
   let dKeys = Object.keys(GEO).sort();
   let foundDist = "";
-
   if(priority && curDistStr) {
     foundDist = dKeys.find(k => k.includes(curDistStr));
     if(foundDist) ul.appendChild(mkLi(foundDist, selDistrict, true));
@@ -514,225 +719,17 @@ function selUpazila(uFull) {
   renderFeed();
 }
 
-function toggleDD(id) {
-  let el = document.getElementById(id);
-  ['distList', 'upzList', 'villageSugg'].forEach(x => { if(x !== id) document.getElementById(x).classList.add('hidden'); });
-  el.classList.toggle('hidden');
-}
+// ----------------
 
-function filterList(iId, uId) {
-  let v = document.getElementById(iId).value.toLowerCase();
-  document.getElementById(uId).querySelectorAll('li').forEach(li => {
-    let searchStr = li.dataset.search || li.innerText.toLowerCase();
-    li.style.display = searchStr.includes(v) ? '' : 'none';
-  });
-}
-
-// --- Smart Map Link & Text Search ---
-let _vt;
-function debounceVillage() { clearTimeout(_vt); _vt = setTimeout(execVillageSearch, 400); }
-
-async function execVillageSearch() {
-  if(!isNetworkOk()) return;
-  let val = document.getElementById('villageInput').value.trim();
-  let sb = document.getElementById('villageSugg');
-  
-  if(val.length < 1) { sb.classList.add('hidden'); return; }
-
-  let coordMatch = val.match(/@?(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
-  if(coordMatch) {
-    let lat = parseFloat(coordMatch[1]), lng = parseFloat(coordMatch[2]);
-    map.flyTo([lat, lng], 19, {animate: true, duration: 1.5});
-    sb.classList.add('hidden');
-    reverseGeocode(lat, lng);
-    return;
-  }
-
-  let query = val;
-  if(selDist && selUpz) query = `${val}, ${selUpz}, ${selDist}, Bangladesh`;
-  else if(val.length > 5) query = val; 
-
-  sb.innerHTML = '<li class="p-4 text-center text-emerald-700 font-bold"><i class="fas fa-spinner fa-spin text-xl"></i> খুঁজছি...</li>';
-  sb.classList.remove('hidden');
-
-  try {
-    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&accept-language=bn&limit=5`);
-    let data = await r.json();
-    sb.innerHTML = '';
-    
-    if(data.length) {
-      data.forEach(pl => {
-        let li = document.createElement('li');
-        li.className = "p-4 cursor-pointer border-b border-gray-100 hover:bg-emerald-100 text-sm font-bold text-gray-800 flex gap-2 transition-colors";
-        li.innerHTML = `<i class="fas fa-map-marker-alt text-emerald-600 mt-1 text-lg"></i> <div>${pl.display_name}</div>`;
-        li.onclick = () => {
-          map.flyTo([pl.lat, pl.lon], 18, {animate:true});
-          document.getElementById('locationStatus').innerHTML = '📍 ' + pl.name;
-          curAddr = pl.display_name;
-          sb.classList.add('hidden');
-          document.getElementById('villageInput').value = pl.name;
-        };
-        sb.appendChild(li);
-      });
-    } else {
-      sb.innerHTML = '<li class="p-4 text-center text-sm text-red-500 font-bold">পাওয়া যায়নি! সঠিক বানান বা ম্যাপ লিংক দিন।</li>';
-    }
-  } catch(e) { sb.innerHTML = '<li class="p-4 text-center text-sm text-gray-500 font-bold">ইন্টারনেট সমস্যা।</li>'; }
-}
-
-// --- Map Logic & Geofencing ---
-function checkGeofence(tLat, tLng) {
-    if(!isLocationVerified) return false;
-    let dist = L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng));
-    return dist <= 1000; 
-}
-
-function initMap() {
-  map = L.map('map', { zoomControl: false }).setView([uLoc.lat, uLoc.lng], 16); 
-  map.attributionControl.setPrefix('<span style="color:#059669;font-weight:bold;">Iftar Tracker BD</span>');
-  L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
-  
-  markersGroup = L.markerClusterGroup({
-      maxClusterRadius: 40,
-      iconCreateFunction: function(cluster) {
-          return L.divIcon({ html: `<div class="custom-cluster-icon w-12 h-12">${cluster.getChildCount()}</div>`, className: '', iconSize: [48, 48] });
-      }
-  });
-  map.addLayer(markersGroup);
-  
-  let uIcon = L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/1004/1004233.png', iconSize:[45,45], iconAnchor:[22,45]});
-  userMarker = L.marker([uLoc.lat, uLoc.lng], {icon: uIcon, zIndexOffset: 1000}).addTo(map);
-
-  map.on('click', async e => {
-    let lat = e.latlng.lat, lng = e.latlng.lng;
-    
-    let snappedPin = feed.find(p => p.mosques?.lat && L.latLng(lat, lng).distanceTo(L.latLng(p.mosques.lat, p.mosques.lng)) < 30);
-    if(snappedPin) {
-        toast("📍 কাছাকাছি একটি ইফতার পাওয়া গেছে, এডিট মোড চালু হলো!");
-        return openViewModal(snappedPin.id, true);
-    }
-
-    if(!isLocationVerified) return requestLocationPrompt();
-    if(!checkGeofence(lat, lng)) return toast("❌ আপনি এই স্থান থেকে ১ কি.মি. এর বাইরে আছেন। শুধু কাছের ইফতার অ্যাড করা যাবে।");
-
-    selMapLoc = {lat, lng};
-    document.getElementById('editMosqueId').value = '';
-    document.getElementById('mosqueName').value = e.autoName || '';
-    document.getElementById('mosqueName').disabled = false;
-    document.getElementById('providerName').disabled = false;
-    document.getElementById('providerName').value = '';
-    document.getElementById('providerPhone').value = ''; // Reset Phone
-    document.getElementById('mosqueImgReq').innerText = '*';
-    document.getElementById('formTitle').innerHTML = '<i class="fas fa-map-pin text-red-500"></i> নতুন ইফতার যোগ করুন';
-    document.getElementById('submitBtnText').innerText = 'লোকেশন সেভ করুন 🚀';
-    
-    document.getElementById('formSection').classList.remove('hidden');
-    if(clickMark) map.removeLayer(clickMark);
-    
-    let aIcon = L.divIcon({ className: 'custom-pin', html: `<i class="fas fa-map-marker-alt fa-3x" style="color: #ef4444;"></i>`, iconSize: [40, 40], iconAnchor: [20, 40] });
-    clickMark = L.marker([lat, lng], {icon: aIcon}).addTo(map);
-    
-    try {
-      let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
-      let d = await r.json();
-      if(!e.autoName) document.getElementById('mosqueName').value = d.address?.amenity || '';
-      curAddr = d.display_name;
-    } catch(err){}
-    document.getElementById('formSection').scrollIntoView({behavior: 'smooth'});
-  });
-}
-
-function requestLocationPrompt() {
-    toast("লোকেশন পারমিশন দিন 🎯", 3000);
-    startLiveTracking(true);
-}
-
-function startLiveTracking(isManualClick = false) {
-  document.getElementById('locationStatus').innerHTML = "লোকেশন খোঁজা হচ্ছে... (স্যাটেলাইট)";
-  if(!navigator.geolocation) return toast("আপনার ডিভাইসে লোকেশন সাপোর্ট করে না!");
-  
-  if(trackId) navigator.geolocation.clearWatch(trackId);
-  trackId = navigator.geolocation.watchPosition(
-    pos => {
-      isLocationVerified = true;
-      uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      localStorage.setItem('iftarTracker_uLoc', JSON.stringify(uLoc)); 
-      if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
-      map.flyTo([uLoc.lat, uLoc.lng], 18, {animate:true, duration: 1.5});
-      document.getElementById('locationStatus').innerHTML = "📍 লাইভ ট্র্যাকিং অন!";
-      
-      if(!document.getElementById('modalDistDisplay').classList.contains('hidden')) throttledUpdateModalDistance(); 
-      renderFeed(); 
-      loadCountdown(uLoc.lat, uLoc.lng);
-      reverseGeocode(uLoc.lat, uLoc.lng, true);
-    },
-    (error) => { 
-      let msg = error.code === 1 ? "পারমিশন ডিনাইড (Denied)। সেটিংস চেক করুন!" : "লোকেশন পাওয়া যাচ্ছে না।";
-      if(isManualClick) toast("⚠️ " + msg);
-      document.getElementById('locationStatus').innerHTML = "📍 ডিফল্ট: বারাদমা বাজার";
-    },
-    {enableHighAccuracy: true, timeout: 15000, maximumAge: 5000} 
-  );
-}
-
-// --- ⏱️ AlAdhan Accurate Countdown (English AM/PM with Fast Caching) ---
-function to12HourBn(time24) {
-  let [h, m] = time24.split(':').map(Number);
-  let ampm = h >= 12 ? 'PM' : 'AM'; 
-  h = h % 12 || 12;
-  return (h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0')).replace(/\d/g, d => bnDigits[d]) + ' ' + ampm;
-}
-
-async function loadCountdown(lat, lng) {
-  let todayStr = new Date().toISOString().split('T')[0];
-  let cachedTime = JSON.parse(localStorage.getItem('iftarTracker_timing') || '{}');
-  let mg24 = "";
-
-  if(cachedTime.date === todayStr && cachedTime.lat === lat) {
-      mg24 = cachedTime.time; // 🔥 0ms Latency Load!
-  } else {
-      try {
-        let r = await fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=1`);
-        let d = await r.json();
-        mg24 = d.data.timings.Maghrib; 
-        localStorage.setItem('iftarTracker_timing', JSON.stringify({date: todayStr, time: mg24, lat: lat}));
-      } catch(e){ return; }
-  }
-
-  let mg12Bn = to12HourBn(mg24); 
-  let [h, m] = mg24.split(':').map(Number);
-  
-  if(cdInterval) clearInterval(cdInterval);
-  let bar = document.getElementById('iftarCountdownBar');
-  bar.classList.remove('hidden');
-  
-  cdInterval = setInterval(() => {
-    let now = new Date(), iftar = new Date();
-    iftar.setHours(h, m, 0, 0);
-    let diff = iftar - now;
-    if(diff > 0) {
-      let hrs = Math.floor(diff/3600000), mins = Math.floor((diff%3600000)/60000), secs = Math.floor((diff%60000)/1000);
-      let hStr = hrs > 0 ? hrs.toString().padStart(2, '0') + ' ঘণ্টা ' : '';
-      let timeStr = (hStr + mins.toString().padStart(2, '0') + ' মিনিট ' + secs.toString().padStart(2, '0') + ' সেকেন্ড').replace(/\d/g, x => bnDigits[x]);
-      bar.innerHTML = `🌙 ইফতার বাকি: ${timeStr} | আজান: ${mg12Bn}`;
-    } else {
-      bar.innerHTML = `✅ আলহামদুলিল্লাহ! ইফতারের সময় হয়ে গেছে (${mg12Bn})`;
-      clearInterval(cdInterval);
-    }
-  }, 1000);
-}
-
-// --- 📡 Supabase Fetch & Smart Sorting ---
 async function fetchFeed() {
-  if(!isNetworkOk()) return;
   try {
     let today = new Date(Date.now() + 6*3600000).toISOString().split('T')[0];
     let r = await fetch(__V__.u()+'/rest/v1/iftar_updates?select=*,mosques(id,name,address,lat,lng,image_url)&date=eq.'+today+'&order=id.desc', {headers: __V__.h()});
     if(r.ok) { 
-        feed = await r.json(); 
-        localStorage.setItem('iftarTracker_feed', JSON.stringify(feed)); // 💾 Cache Feed
-        localStorage.setItem('iftarTracker_feed_time', Date.now().toString());
-        renderFeed(); renderPins(); 
+      feed = await r.json(); 
+      localStorage.setItem('iftarTracker_feed', JSON.stringify(feed)); 
+      renderFeed(); 
+      renderPins(); 
     }
   } catch(e){}
 }
@@ -749,29 +746,26 @@ function renderFeed() {
       let distKm = 9999;
       if(p.mosques?.lat && uLoc.lat) distKm = L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(p.mosques.lat, p.mosques.lng)) / 1000;
       return {...p, distKm};
-  }).sort((a, b) => a.distKm - b.distKm);
+  }).sort((a,b) => a.distKm - b.distKm);
 
-  if(!fFeed.length) { c.innerHTML = '<div class="text-center p-8 glass-panel rounded-3xl"><i class="fas fa-box-open text-4xl text-gray-300 mb-3"></i><p class="text-sm font-bold text-gray-500">এই এলাকায় আজকের কোনো ইফতার আপডেট নেই!</p></div>'; return; }
+  if(!fFeed.length) { c.innerHTML = '<p class="text-center p-8 font-bold text-gray-400">আজ কোনো ইফতার নেই!</p>'; return; }
   
   c.innerHTML = fFeed.map(p => {
-    let walkMins = Math.ceil(p.distKm * 12); 
-    let distStr = p.distKm < 1 ? ((p.distKm*1000).toFixed(0) + ' মি.') : (p.distKm.toFixed(2) + ' কি.মি.');
-    let bnDist = distStr.replace(/\d/g, x => bnDigits[x]);
-    let bnTime = walkMins.toString().replace(/\d/g, x => bnDigits[x]);
-    
+    let bnDist = (p.distKm < 1 ? (p.distKm*1000).toFixed(0) + ' মি.' : p.distKm.toFixed(2) + ' কি.মি.').replace(/\d/g, x=>bnDigits[x]);
+    let bnTime = Math.ceil(p.distKm*12).toString().replace(/\d/g, x=>bnDigits[x]); 
     return `
-    <div onclick="openViewModal('${p.id}')" class="glass-panel p-5 rounded-3xl shadow-sm cursor-pointer hover:shadow-lg transition-all relative overflow-hidden group">
-      <div class="flex justify-between items-start mb-2">
+    <div onclick="openViewModal('${p.id}')" class="glass-panel p-5 rounded-3xl shadow-sm cursor-pointer relative overflow-hidden group mb-4">
+      <div class="flex justify-between items-start">
         <div class="pr-20">
-          <h3 class="font-extrabold text-emerald-950 text-base leading-tight group-hover:text-emerald-700 transition-colors">${p.mosques?.name || 'অজানা স্থান'}</h3>
-          <p class="text-xs text-gray-600 mt-1.5 flex items-start gap-1"><i class="fas fa-map-marker-alt mt-0.5 text-emerald-600"></i> <span>${p.mosques?.address || ''}</span></p>
+          <h3 class="font-extrabold text-emerald-950 text-sm">${p.mosques.name}</h3>
+          <p class="text-[10px] text-gray-500 mt-1 flex items-center gap-1"><i class="fas fa-map-marker-alt text-emerald-600"></i> ${p.mosques.address}</p>
+        </div>
+        <div class="absolute top-5 right-4 text-right">
+          <div class="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-200 mb-1">${bnDist}</div>
+          <div class="text-[9px] font-bold text-gray-400"><i class="fas fa-walking"></i> ~${bnTime} মি.</div>
         </div>
       </div>
-      <div class="absolute top-5 right-4 text-right">
-          <div class="bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-900 text-[10px] font-extrabold px-3 py-1.5 rounded-xl border border-emerald-300 mb-1.5 shadow-sm"><i class="fas fa-route"></i> ${bnDist}</div>
-          <div class="text-[10px] font-bold text-gray-500"><i class="fas fa-walking"></i> ~${bnTime} মিনিট</div>
-      </div>
-      <div class="bg-white/60 p-3.5 rounded-2xl border border-white mt-3 shadow-inner"><p class="text-sm text-gray-900 font-bold line-clamp-2">🍲 ${p.items.replace('দাতা: ', '👤 ')}</p></div>
+      <div class="bg-white/60 p-3 rounded-2xl border border-white mt-3 text-xs font-bold text-gray-800 line-clamp-2">🍲 ${p.items}</div>
     </div>
   `}).join('');
 }
@@ -779,211 +773,81 @@ function renderFeed() {
 function renderPins() {
   if(!markersGroup) return; markersGroup.clearLayers();
   feed.forEach(p => {
-    if(p.mosques?.lat && p.mosques?.lng) {
-      let menuShow = p.items;
-      if(menuShow.startsWith('দাতা: ')) menuShow = menuShow.split('\nমেন্যু: ')[1] || menuShow;
+    let icon = L.divIcon({ className: 'custom-div-icon', html: `<div class="map-text-marker" onclick="openViewModal('${p.id}')"><i class="fas fa-map-marker-alt pin-icon"></i><div class="info-text">ইফতার আছে!</div></div>`, iconSize:[0,0] });
+    markersGroup.addLayer(L.marker([p.mosques.lat, p.mosques.lng], {icon: icon}));
+  });
+}
 
-      let icon = L.divIcon({
-          className: 'custom-div-icon', 
-          html: `<div class="map-text-marker" onclick="openViewModal('${p.id}')">
-                    <i class="fas fa-map-marker-alt pin-icon"></i>
-                    <div class="info-text">ইফতার আছে!</div>
-                    <div class="menu-text">${menuShow}</div>
-                 </div>`, 
-          iconSize:[0,0]
+function checkGeofence(tLat, tLng) {
+    if(!isLocationVerified) return false;
+    let dist = L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng));
+    return dist <= 1000; 
+}
+
+function toggleDD(id) { document.getElementById(id).classList.toggle('hidden'); }
+// 🔥 1-Character Tri-Lingual Real-Time Auto-Suggest Filter!
+function filterList(i, u) { 
+    let v = document.getElementById(i).value.toLowerCase();
+    document.getElementById(u).querySelectorAll('li').forEach(li => {
+      li.style.display = li.dataset.search.includes(v) ? '' : 'none';
+    });
+}
+
+let _vt; function debounceVillage() { clearTimeout(_vt); _vt = setTimeout(execVillageSearch, 300); }
+async function execVillageSearch() {
+  let val = document.getElementById('villageInput').value.trim();
+  let sb = document.getElementById('villageSugg');
+  if(val.length < 1) { sb.classList.add('hidden'); return; }
+  let query = (selDist && selUpz) ? `${val}, ${selUpz}, ${selDist}, Bangladesh` : val;
+  sb.innerHTML = '<li class="p-4 text-center text-emerald-700 font-bold"><i class="fas fa-spinner fa-spin text-xl"></i> খুঁজছি...</li>';
+  sb.classList.remove('hidden');
+  try {
+    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&accept-language=bn&limit=5`);
+    let data = await r.json(); sb.innerHTML = '';
+    if(data.length) {
+      data.forEach(pl => {
+        let li = document.createElement('li'); li.className = "p-4 cursor-pointer border-b border-gray-100 hover:bg-emerald-100 text-sm font-bold text-gray-800 flex gap-2 transition-colors";
+        li.innerHTML = `<i class="fas fa-map-marker-alt text-emerald-600 mt-1 text-lg"></i> <div>${pl.display_name}</div>`;
+        li.onclick = () => { map.flyTo([pl.lat, pl.lon], 18, {animate:true}); document.getElementById('locationStatus').innerHTML = '📍 ' + pl.name; curAddr = pl.display_name; sb.classList.add('hidden'); document.getElementById('villageInput').value = pl.name; };
+        sb.appendChild(li);
       });
-      markersGroup.addLayer(L.marker([p.mosques.lat, p.mosques.lng], {icon: icon}));
-    }
-  });
+    } else { sb.innerHTML = '<li class="p-4 text-center text-sm text-red-500 font-bold">পাওয়া যায়নি!</li>'; }
+  } catch(e) { sb.innerHTML = '<li class="p-4 text-center text-sm text-gray-500 font-bold">ইন্টারনেট সমস্যা।</li>'; }
 }
 
-function compressImg(file, mw) {
-  return new Promise(res => {
-    let rd = new FileReader(); rd.onload = e => {
-      let img = new Image(); img.onload = () => {
-        let w = img.width, h = img.height; if(w > mw) { h = (h * mw)/w; w = mw; }
-        let cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, 0, w, h); cv.toBlob(res, 'image/webp', 0.7); 
-      }; img.src = e.target.result;
-    }; rd.readAsDataURL(file);
-  });
-}
-
-async function handleImg(input, type) {
-  let file = input.files[0]; if(!file) return;
-  document.getElementById(type+'ImageLabel').classList.replace('border-gray-400', 'border-emerald-500');
-  document.getElementById(type+'ImageLabel').classList.replace('bg-white/50', 'bg-emerald-50/90');
-  document.getElementById(type+'ImageIcon').classList.replace('text-gray-500', 'text-emerald-500');
-  let blob = await compressImg(file, type==='mosque'?800:600);
-  type==='mosque' ? mosqBlob=blob : foodBlob=blob;
-}
-
-// --- 🚀 Submit & Save ---
-document.getElementById('iftarForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  if(!isNetworkOk()) return;
-  
-  let eid = document.getElementById('editMosqueId').value;
-  let pName = document.getElementById('providerName').value.trim();
-  let pPhone = document.getElementById('providerPhone').value.trim(); // 🔥 Phone
-  let mName = document.getElementById('mosqueName').value;
-  let items = document.getElementById('iftarItems').value;
-  if(!eid && !mosqBlob) return toast("❌ ছবি দেওয়া বাধ্যতামূলক!");
-  
-  let btn = document.getElementById('submitBtn'), orig = document.getElementById('submitBtnText').innerText;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> সেভ হচ্ছে...'; btn.disabled = true;
-  
-  try {
-    let tgM = null, tgF = null;
-    let upTg = async (b, fn) => {
-      let fd = new FormData(); fd.append('chat_id', __V__.c()); fd.append('photo', b, fn);
-      let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/sendPhoto', {method:'POST', body:fd});
-      let d = await r.json(); return d.ok ? d.result.photo.pop().file_id : null;
-    };
-    
-    if(mosqBlob) tgM = await upTg(mosqBlob, 'msq.webp');
-    if(foodBlob) tgF = await upTg(foodBlob, 'food.webp');
-    
-    let today = new Date(Date.now() + 6*3600000).toISOString().split('T')[0];
-    let mid = eid, su = __V__.u(), sh = __V__.h();
-    
-    if(!mid) {
-      let mr = await fetch(su+'/rest/v1/mosques?name=eq.'+encodeURIComponent(mName), {headers: sh});
-      let md = await mr.json();
-      if(md && md.length) {
-        mid = md[0].id; 
-        if(!md[0].image_url && tgM) await fetch(su+'/rest/v1/mosques?id=eq.'+mid, {method:'PATCH', headers:sh, body:JSON.stringify({image_url: tgM})});
-      } else {
-        let ir = await fetch(su+'/rest/v1/mosques', {method:'POST', headers:sh, body:JSON.stringify({name:mName, lat:selMapLoc?selMapLoc.lat:uLoc.lat, lng:selMapLoc?selMapLoc.lng:uLoc.lng, address:curAddr, image_url:tgM})});
-        let id = await ir.json(); if(id && id.length) mid = id[0].id;
-      }
-    } else if(tgM) {
-      await fetch(su+'/rest/v1/mosques?id=eq.'+mid, {method:'PATCH', headers:sh, body:JSON.stringify({image_url: tgM})});
-    }
-    
-    if(mid) {
-      // 🔥 Phone number appended to items string
-      let finalItems = `দাতা: ${pName} 📞 ${pPhone}\nমেন্যু: ${items}`;
-      let pl = {mosque_id: mid, date: today, items: finalItems}; if(tgF) pl.food_image_url = tgF;
-      await fetch(su+'/rest/v1/iftar_updates', {method:'POST', headers:Object.assign({}, sh, {'Prefer':'resolution=merge-duplicates'}), body:JSON.stringify(pl)});
-    }
-    
-    // Clear cache to force refresh
-    localStorage.removeItem('iftarTracker_feed');
-    await fetchFeed(); hideForm(); 
-    confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 }, zIndex: 3000 });
-    toast(eid ? '✅ আপডেট সফল!' : '✅ ইফতার সফলভাবে যোগ হয়েছে!');
-  } catch(err) { toast("❌ ইন্টারনেট কানেকশন এরর!"); }
-  finally { btn.innerHTML = `<span id="submitBtnText">${orig}</span>`; btn.disabled = false; }
-});
-
-// --- Modal, Share & Route Throttle ---
-async function getTgImg(fid) {
-  if(!fid) return null;
-  try {
-    let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/getFile?file_id='+fid);
-    let d = await r.json(); if(d.ok) return 'https://api.telegram.org/file/bot'+__V__.t()+'/'+d.result.file_path;
-  } catch(e){} return null;
-}
-
-async function openViewModal(pid, fly = false) {
-  viewPost = feed.find(p => p.id === pid); if(!viewPost) return;
-  if(fly && viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 19, {animate:true});
-  
-  document.getElementById('viewModal').classList.remove('hidden');
-  document.getElementById('modalDistDisplay').classList.add('hidden'); 
-  document.getElementById('viewMosqueName').innerText = viewPost.mosques?.name || '';
-  document.getElementById('viewAddress').innerText = viewPost.mosques?.address || '';
-  document.getElementById('viewItems').innerText = viewPost.items;
-  
-  document.getElementById('viewMosqueImg').classList.add('hidden'); document.getElementById('mosqueImgLoader').classList.remove('hidden');
-  if(viewPost.mosques?.image_url) { let url = await getTgImg(viewPost.mosques.image_url); if(url) { document.getElementById('viewMosqueImg').src = url; document.getElementById('viewMosqueImg').classList.remove('hidden'); } }
-  document.getElementById('mosqueImgLoader').classList.add('hidden');
-  
-  let fs = document.getElementById('foodImgSection');
-  if(viewPost.food_image_url) {
-    fs.classList.remove('hidden'); document.getElementById('viewFoodImg').classList.add('hidden'); document.getElementById('foodImgLoader').classList.remove('hidden');
-    let fu = await getTgImg(viewPost.food_image_url); if(fu) { document.getElementById('viewFoodImg').src = fu; document.getElementById('viewFoodImg').classList.remove('hidden'); }
-    document.getElementById('foodImgLoader').classList.add('hidden');
-  } else fs.classList.add('hidden');
-}
-
-function closeModal() { document.getElementById('viewModal').classList.add('hidden'); if(routeLine) map.removeLayer(routeLine); }
 function hideForm() { document.getElementById('formSection').classList.add('hidden'); if(clickMark) map.removeLayer(clickMark); document.getElementById('iftarForm').reset(); mosqBlob=null; foodBlob=null; }
+function closeModal() { document.getElementById('viewModal').classList.add('hidden'); }
+function toast(m, t=3000) { let d = document.createElement('div'); d.className='toast'; d.innerText=m; document.body.appendChild(d); setTimeout(()=>d.remove(), t); }
 
-function openEdit() {
-  if(!viewPost) return; 
-  if(!isLocationVerified) return requestLocationPrompt(); 
-  if(!checkGeofence(viewPost.mosques.lat, viewPost.mosques.lng)) return toast("❌ আপনি এই স্থান থেকে ১ কি.মি. এর বাইরে আছেন। এডিট করা যাবে না!"); 
-  
-  closeModal();
-  document.getElementById('editMosqueId').value = viewPost.mosques?.id || '';
-  document.getElementById('mosqueName').value = viewPost.mosques?.name || ''; document.getElementById('mosqueName').disabled = true;
-  
-  let itmTxt = viewPost.items, pName = "", pPhone = "";
-  if(itmTxt.startsWith('দাতা: ')) { 
-      let parts = itmTxt.split('\nমেন্যু: '); 
-      let topRow = parts[0].replace('দাতা: ', '').trim();
-      let phoneSplit = topRow.split(' 📞 ');
-      pName = phoneSplit[0] || '';
-      pPhone = phoneSplit[1] || '';
-      itmTxt = parts[1] || ''; 
-  }
-  document.getElementById('providerName').value = pName; document.getElementById('providerName').disabled = true; 
-  document.getElementById('providerPhone').value = pPhone; document.getElementById('providerPhone').disabled = true; // Phone protected
-  document.getElementById('iftarItems').value = itmTxt;
-  document.getElementById('mosqueImgReq').innerText = '(ঐচ্ছিক)';
-  document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit text-yellow-500"></i> ইফতার আপডেট করুন';
-  document.getElementById('formSection').classList.remove('hidden');
-  if(viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 18, {animate:true});
-}
-
-function showModalDistance() {
-  if(!viewPost || !viewPost.mosques || !viewPost.mosques.lat) return toast("লোকেশন পাওয়া যায়নি!");
-  if(!isLocationVerified) return requestLocationPrompt();
-  document.getElementById('modalDistDisplay').classList.remove('hidden');
-  document.getElementById('modalDistVal').innerHTML = `<div class="flex flex-col gap-1.5 items-center"><i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i> রাস্তা মাপা হচ্ছে...</div>`;
-  updateModalDistance();
-}
-
-let lastRouteTime = 0;
-async function throttledUpdateModalDistance() { let now = Date.now(); if(now - lastRouteTime < 5000) return; lastRouteTime = now; await updateModalDistance(); }
-
-async function updateModalDistance() {
-  if(!viewPost || !viewPost.mosques || !viewPost.mosques.lat) return;
-  let tLat = viewPost.mosques.lat, tLng = viewPost.mosques.lng;
-  try {
-    let url = `https://router.project-osrm.org/route/v1/driving/${uLoc.lng},${uLoc.lat};${tLng},${tLat}?overview=full&geometries=geojson`;
-    let res = await fetch(url); let data = await res.json();
-    if(data.routes && data.routes.length > 0) {
-        let route = data.routes[0];
-        let distKm = (route.distance / 1000).toFixed(2).replace(/\d/g, x => bnDigits[x]);
-        let durSecs = route.duration, dH = Math.floor(durSecs/3600), dM = Math.floor((durSecs%3600)/60), dS = Math.floor(durSecs%60);
-        let timeStr = `${dH>0?dH+' ঘণ্টা ':''}${dM} মিনিট ${dS} সেকেন্ড`.replace(/\d/g, x => bnDigits[x]);
+document.getElementById('iftarForm').onsubmit = async (e) => {
+    e.preventDefault();
+    let btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = "সেভ হচ্ছে...";
+    try {
+        let today = new Date(Date.now() + 6*3600000).toISOString().split('T')[0];
+        let pName = document.getElementById('providerName').value, pPhone = document.getElementById('providerPhone').value, mName = document.getElementById('mosqueName').value, items = document.getElementById('iftarItems').value;
         
-        document.getElementById('modalDistVal').innerHTML = `<div class="flex items-center gap-2"><i class="fas fa-car text-blue-600"></i> পথ: ${distKm} কি.মি.</div><div class="flex items-center gap-2 text-gray-600 mt-1"><i class="fas fa-clock"></i> সময়: ${timeStr}</div>`;
-        if(routeLine) map.removeLayer(routeLine);
-        let coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-        routeLine = L.polyline(coords, {color: '#2563eb', weight: 6, opacity: 0.8, className: 'route-line'}).addTo(map);
-        map.fitBounds(routeLine.getBounds(), {padding: [50, 50]});
-    } else throw new Error("No route");
-  } catch(e) {
-    let dist = (L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng))/1000).toFixed(2).replace(/\d/g, x => bnDigits[x]);
-    document.getElementById('modalDistVal').innerHTML = `✈️ সোজা দূরত্ব: ${dist} কি.মি.`;
-  }
-}
+        let tgM = mosqBlob ? await uploadToTg(mosqBlob, 'msq.webp') : null;
+        let tgF = foodBlob ? await uploadToTg(foodBlob, 'food.webp') : null;
 
-// 🔥 Deep Linking Share API
-function doShare() {
-  if(!viewPost) return;
-  let deepLink = window.location.origin + window.location.pathname + "?id=" + viewPost.id;
-  let text = `🍲 ${viewPost.mosques.name} এ আজ ইফতার আছে!\n\n${viewPost.items}\n\n📍 ${viewPost.mosques.address}\n\nম্যাপে দেখতে লিংকে ক্লিক করুন:\n${deepLink}`;
-  if(navigator.share) navigator.share({title:'Iftar Tracker BD', text:text}).catch(()=>{});
-  else { if(navigator.clipboard) navigator.clipboard.writeText(text); toast('📋 লিংক ও মেন্যু কপি হয়েছে!'); }
-}
-
-function toast(msg, time = 3000) { let t = document.createElement('div'); t.className = 'toast'; t.innerText = msg; document.body.appendChild(t); setTimeout(() => t.remove(), time); }
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+        let mid = document.getElementById('editMosqueId').value;
+        if(!mid) {
+            let res = await fetch(__V__.u()+'/rest/v1/mosques', {method:'POST', headers:__V__.h(), body:JSON.stringify({name:mName, lat:selMapLoc.lat, lng:selMapLoc.lng, address:curAddr, image_url: tgM})});
+            let data = await res.json(); mid = data[0].id;
+        } else if(tgM) {
+            await fetch(__V__.u()+'/rest/v1/mosques?id=eq.'+mid, {method:'PATCH', headers:__V__.h(), body:JSON.stringify({image_url: tgM})});
+        }
+        
+        await fetch(__V__.u()+'/rest/v1/iftar_updates', {method:'POST', headers:Object.assign({}, __V__.h(), {'Prefer':'resolution=merge-duplicates'}), body:JSON.stringify({mosque_id: mid, date: today, food_image_url: tgF, items: `দাতা: ${pName} 📞 ${pPhone}\nমেন্যু: ${items}`})});
+        
+        // 🔥 Immediately clear local cache and re-fetch to reflect instantly in UI
+        localStorage.removeItem('iftarTracker_feed');
+        await fetchFeed(); 
+        
+        confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 }, zIndex: 3000 });
+        hideForm(); toast("✅ ইফতার যুক্ত হয়েছে!");
+    } catch(err) { toast("❌ এরর হয়েছে!"); }
+    btn.disabled = false; btn.innerText = "লোকেশন সেভ করুন 🚀";
+};
 </script>
 </body>
 </html>
