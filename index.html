@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Iftar Tracker BD</title>
+<meta name="description" content="বাংলাদেশের যেকোনো এলাকার ইফতারের মেন্যু খুঁজুন এবং শেয়ার করুন।">
+<meta name="theme-color" content="#065f46">
+<link rel="manifest" href="/manifest.json">
+<!-- Leaflet & MarkerCluster -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<!-- FontAwesome & Tailwind & Confetti -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<style>
+/* 💎 Advanced Glassmorphism & UI Styles */
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #eef2ff; padding-bottom: 2rem; overflow-x: hidden; }
+.glass-panel { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.9); }
+.glass-header { background: rgba(4, 120, 87, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(16, 185, 129, 0.4); }
+
+/* 🔥 Unique Floating Pin */
+.map-text-marker { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 160px; transform: translate(-50%, -100%); cursor: pointer; }
+.map-text-marker .pin-icon { font-size: 38px; color: #ef4444; filter: drop-shadow(0 8px 6px rgba(0,0,0,0.6)); animation: bounceSoft 2.5s ease-in-out infinite; }
+.map-text-marker .info-text { font-size: 14px; font-weight: 900; color: #fff; text-shadow: -1.5px -1.5px 0 #064e3b, 1.5px -1.5px 0 #064e3b, -1.5px 1.5px 0 #064e3b, 1.5px 1.5px 0 #064e3b, 0px 4px 8px rgba(0,0,0,0.9); margin-top: -6px; line-height: 1.1; letter-spacing: 0.5px;}
+.map-text-marker .menu-text { font-size: 12px; font-weight: 800; color: #fde047; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0px 3px 6px rgba(0,0,0,0.9); margin-top: 3px; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+
+/* Cluster Icon */
+.custom-cluster-icon { background: rgba(16, 185, 129, 0.95); backdrop-filter: blur(4px); color: white; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+
+@keyframes bounceSoft { 0%, 100% { transform: translateY(0); filter: drop-shadow(0 8px 6px rgba(0,0,0,0.6)); } 50% { transform: translateY(-8px); filter: drop-shadow(0 14px 8px rgba(0,0,0,0.4)); } }
+@keyframes dropPin { 0% { transform: translateY(-50px) scale(1.5); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+.custom-pin i { animation: dropPin 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, bounceSoft 2s 0.4s infinite; filter: drop-shadow(0px 10px 8px rgba(0,0,0,0.5)); }
+
+.no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+.dropdown-anim{animation:slideDown 0.2s ease-out forwards;transform-origin:top center}
+@keyframes slideDown{from{opacity:0;transform:scaleY(.9)}to{opacity:1;transform:scaleY(1)}}
+
+/* Digital Toast */
+.toast{position:fixed; top: 2rem; left:50%; transform:translateX(-50%); background:rgba(6, 78, 59, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(16, 185, 129, 0.5); color:#fff; font-size:13px; font-weight:700; padding:1rem 1.5rem; border-radius:9999px; box-shadow:0 10px 25px rgba(0,0,0,.3); z-index:9999; white-space:nowrap; animation:toastDrop .4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards}
+@keyframes toastDrop { from { top: -2rem; opacity: 0; } to { top: 2rem; opacity: 1; } }
+
+.route-line { animation: dash 20s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -1000; } }
+
+input, textarea { color: #1f2937 !important; }
+input::placeholder, textarea::placeholder { color: #9ca3af !important; }
+</style>
+</head>
+<body class="text-gray-800">
+
+<!-- Header & Timer -->
+<header class="glass-header text-white shadow-lg sticky top-0 z-[1000]">
+  <div class="p-4 w-full md:max-w-2xl mx-auto flex justify-between items-center">
+    <h1 class="text-xl md:text-2xl font-extrabold flex items-center gap-2 tracking-tight cursor-pointer" onclick="window.location.reload()">
+      <i class="fas fa-moon text-yellow-300"></i> Iftar Tracker BD
+    </h1>
+    <div id="headerDate" class="text-[10px] md:text-xs font-bold bg-white/20 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20 shadow-inner"></div>
+  </div>
+  
+  <div id="iftarCountdownBar" class="hidden bg-yellow-400 text-emerald-900 text-xs md:text-sm font-extrabold text-center py-2 shadow-inner transition-all duration-500 tracking-wide border-b border-yellow-500"></div>
+  
+  <!-- 🔍 Ultimate Trilingual Search Section -->
+  <div class="p-3 w-full md:max-w-2xl mx-auto space-y-2 relative">
+    <div class="flex gap-2 relative">
+      <div class="relative w-1/2" id="distContainer">
+        <button type="button" onclick="toggleDD('distList')" class="w-full bg-white/20 backdrop-blur-md text-white text-xs md:text-sm p-3 rounded-xl border border-white/30 outline-none flex justify-between items-center shadow-inner hover:bg-white/30 transition-colors">
+          <span id="distBtnText" class="truncate font-bold">জেলা নির্বাচন</span>
+          <i class="fas fa-chevron-down text-[10px]"></i>
+        </button>
+        <div id="distList" class="hidden absolute top-full left-0 mt-2 w-[240px] md:w-[300px] glass-panel rounded-2xl shadow-2xl z-[2000] overflow-hidden dropdown-anim border-2 border-emerald-200">
+          <div class="p-2 border-b border-gray-200/50 bg-white/90 sticky top-0">
+            <input type="text" id="distSearch" oninput="filterList('distSearch','distUl')" placeholder="🔍 জেলা খুঁজুন (Bangla/English)..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
+          </div>
+          <ul id="distUl" class="max-h-56 overflow-y-auto text-xs md:text-sm text-gray-800 font-bold bg-white/80"></ul>
+        </div>
+      </div>
+
+      <div class="relative w-1/2" id="upzContainer">
+        <button type="button" onclick="toggleDD('upzList')" id="upzBtn" class="w-full bg-white/20 backdrop-blur-md text-white text-xs md:text-sm p-3 rounded-xl border border-white/30 outline-none flex justify-between items-center shadow-inner opacity-50 cursor-not-allowed" disabled>
+          <span id="upzBtnText" class="truncate font-bold">উপজেলা</span>
+          <i class="fas fa-chevron-down text-[10px]"></i>
+        </button>
+        <div id="upzList" class="hidden absolute top-full right-0 mt-2 w-[240px] md:w-[300px] glass-panel rounded-2xl shadow-2xl z-[2000] overflow-hidden dropdown-anim border-2 border-emerald-200">
+          <div class="p-2 border-b border-gray-200/50 bg-white/90 sticky top-0">
+            <input type="text" id="upzSearch" oninput="filterList('upzSearch','upzUl')" placeholder="🔍 উপজেলা খুঁজুন (Bangla/En)..." class="w-full text-xs md:text-sm p-2.5 border border-emerald-400 rounded-xl outline-none focus:ring-2 focus:ring-emerald-600 bg-white text-gray-900 font-medium shadow-inner">
+          </div>
+          <ul id="upzUl" class="max-h-56 overflow-y-auto text-xs md:text-sm text-gray-800 font-bold bg-white/80">
+            <li class="p-3 text-center text-gray-500">আগে জেলা নির্বাচন করুন</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <div class="relative w-full">
+      <input type="text" id="villageInput" oninput="debounceVillage()" placeholder="গ্রামের নাম বা ম্যাপের লিংক পেস্ট করুন..." class="w-full bg-white/20 backdrop-blur-md text-white text-xs md:text-sm font-bold p-3.5 rounded-xl border border-white/40 outline-none shadow-inner focus:bg-white/30 transition-colors placeholder-white/70">
+      <ul id="villageSugg" class="hidden absolute top-full left-0 w-full mt-2 glass-panel rounded-2xl shadow-2xl z-[2000] overflow-hidden max-h-56 overflow-y-auto dropdown-anim border border-emerald-200 bg-white/90"></ul>
+    </div>
+  </div>
+</header>
+
+<!-- 🕌 Nearby Mosque Suggestions -->
+<div id="nearbyContainer" class="hidden bg-emerald-50/90 backdrop-blur-md border-b border-emerald-200 p-2 overflow-x-auto whitespace-nowrap no-scrollbar w-full md:max-w-2xl mx-auto shadow-sm">
+   <div class="text-[11px] md:text-xs font-extrabold text-emerald-800 mb-1.5 flex items-center gap-1"><i class="fas fa-mosque"></i> আপনার আশেপাশের মসজিদ (১ কি.মি)</div>
+   <div id="nearbyList" class="flex gap-2"></div>
+</div>
+
+<main class="w-full md:max-w-2xl mx-auto relative px-2 md:px-4">
+  
+  <!-- 🗺️ Map Section (Framed & Responsive) -->
+  <div class="mt-4">
+      <section class="relative w-full h-[55vh] md:h-[65vh] bg-gray-200 z-0 border-[6px] border-white/80 rounded-[2rem] shadow-[0_15px_30px_rgba(0,0,0,0.2)] overflow-hidden box-border">
+        
+        <div class="absolute top-3 left-1/2 transform -translate-x-1/2 z-[400] glass-panel px-5 py-2.5 rounded-full shadow-lg border border-white/50 flex flex-col items-center gap-1 pointer-events-none w-[90%] md:w-[60%] justify-center">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-satellite text-emerald-600 animate-pulse text-lg"></i>
+            <p id="locationStatus" class="text-xs md:text-sm font-extrabold text-gray-800 text-center tracking-wide">ম্যাপ লোড হচ্ছে...</p>
+          </div>
+        </div>
+
+        <button onclick="requestLocationPrompt()" class="absolute bottom-5 right-4 z-[400] glass-panel text-emerald-700 p-4 md:p-5 rounded-full shadow-xl border-2 border-white hover:bg-white/90 transition-all active:scale-90 flex items-center justify-center group bg-white/80">
+          <i class="fas fa-location-arrow text-2xl md:text-3xl group-hover:animate-pulse"></i>
+        </button>
+        <div id="map" class="w-full h-full z-0"></div>
+      </section>
+  </div>
+
+  <!-- 📝 Hidden Form (Glassmorphism + Phone Number) -->
+  <section id="formSection" class="hidden absolute bottom-0 left-0 w-full glass-panel rounded-t-[2.5rem] p-6 md:p-8 shadow-[0_-20px_50px_rgba(0,0,0,0.2)] z-[500] border-t-2 border-white overflow-y-auto max-h-[85vh]">
+    <div class="flex justify-between items-center mb-5">
+      <h2 id="formTitle" class="text-xl font-extrabold text-emerald-900 flex items-center gap-2">
+        <i class="fas fa-map-pin text-red-500"></i> ইফতার যোগ করুন
+      </h2>
+      <button type="button" onclick="hideForm()" class="p-2.5 bg-white/60 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors shadow-sm"><i class="fas fa-times text-lg"></i></button>
+    </div>
+    
+    <form id="iftarForm" class="space-y-4">
+      <input type="hidden" id="editMosqueId" value="">
+      
+      <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-extrabold text-emerald-800 mb-1 uppercase tracking-wider">দাতার নাম</label>
+            <input type="text" id="providerName" required placeholder="উদাঃ ফরিদ" class="w-full p-3.5 bg-white/80 border border-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm shadow-inner text-gray-900" style="text-transform: capitalize;"/>
+          </div>
+          <div>
+            <label class="block text-[11px] font-extrabold text-emerald-800 mb-1 uppercase tracking-wider">মোবাইল নাম্বার</label>
+            <input type="tel" id="providerPhone" required placeholder="017XXXXXX" class="w-full p-3.5 bg-white/80 border border-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm shadow-inner text-gray-900"/>
+          </div>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-extrabold text-emerald-800 mb-1 uppercase tracking-wider">স্থান বা বাড়ির নাম</label>
+        <input type="text" id="mosqueName" required placeholder="যেমন: ফরিদের বাড়ি / বড় মসজিদ" class="w-full p-3.5 bg-white/80 border border-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm shadow-inner text-gray-900"/>
+      </div>
+      <div>
+        <label class="block text-[11px] font-extrabold text-emerald-800 mb-1 uppercase tracking-wider">আজকের ইফতার মেন্যু</label>
+        <textarea id="iftarItems" required rows="3" placeholder="যেমন: ছোলা, মুড়ি, খেজুর, জিলাপি..." class="w-full p-3.5 bg-white/80 border border-white rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none font-bold text-sm shadow-inner text-gray-900"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3 md:gap-4">
+        <label id="mosqueImageLabel" class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-emerald-400 rounded-xl cursor-pointer hover:border-emerald-600 transition-colors bg-white/60 shadow-sm">
+          <i id="mosqueImageIcon" class="fas fa-camera text-emerald-600 text-2xl mb-1.5"></i>
+          <span class="text-[11px] font-extrabold text-emerald-900 text-center">স্থান ছবি <span class="text-red-500" id="mosqueImgReq">*</span></span>
+          <input type="file" accept="image/*" class="hidden" onchange="handleImg(this,'mosque')">
+        </label>
+        <label id="foodImageLabel" class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-400 rounded-xl cursor-pointer hover:border-emerald-500 transition-colors bg-white/50 shadow-sm">
+          <i id="foodImageIcon" class="fas fa-camera text-gray-500 text-2xl mb-1.5"></i>
+          <span class="text-[11px] font-extrabold text-gray-700 text-center">ইফতার ছবি (ঐচ্ছিক)</span>
+          <input type="file" accept="image/*" class="hidden" onchange="handleImg(this,'food')">
+        </label>
+      </div>
+      <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900 text-white font-extrabold py-4.5 rounded-xl shadow-[0_8px_20px_rgba(16,185,129,0.4)] transition-all active:scale-95 flex justify-center items-center gap-2 border border-emerald-400 text-lg mt-2">
+        <span id="submitBtnText">লোকেশন সেভ করুন 🚀</span>
+      </button>
+    </form>
+  </section>
+
+  <!-- 👀 View Modal (Glassmorphism) -->
+  <div id="viewModal" class="hidden fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 border border-white/60">
+      <button onclick="closeModal()" class="absolute top-3 right-3 p-2.5 bg-black/40 backdrop-blur-md text-white rounded-full hover:bg-red-500 transition-colors z-10 shadow-sm"><i class="fas fa-times text-lg"></i></button>
+      
+      <div class="relative h-56 bg-gray-200 flex items-center justify-center overflow-hidden rounded-t-3xl">
+        <div id="mosqueImgLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 z-10">
+          <i class="fas fa-spinner fa-spin text-emerald-500 text-4xl"></i>
+        </div>
+        <img id="viewMosqueImg" src="" class="w-full h-full object-cover hidden">
+      </div>
+      
+      <div class="p-6">
+        <h2 id="viewMosqueName" class="text-2xl font-extrabold text-emerald-950 mb-1 leading-tight"></h2>
+        <p class="text-sm text-gray-700 mb-5 flex items-start gap-1.5 font-medium"><i class="fas fa-map-marker-alt mt-1 text-emerald-600"></i> <span id="viewAddress"></span></p>
+        
+        <!-- 🔥 Live Distance & Direction UI inside Modal -->
+        <div id="modalDistDisplay" class="hidden bg-white/80 text-blue-900 text-sm font-extrabold p-4 rounded-2xl mb-5 border border-blue-200 shadow-md">
+           <div id="modalDistVal" class="flex flex-col gap-1.5 items-center">
+              <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i> রাস্তা মাপা হচ্ছে...
+           </div>
+        </div>
+
+        <div class="bg-white/80 p-5 rounded-2xl border border-white mb-5 shadow-md">
+          <p class="text-xs font-extrabold text-emerald-600 mb-3 uppercase tracking-wide border-b border-emerald-100 pb-1.5">আজকের মেন্যু ও দাতা</p>
+          <p id="viewItems" class="text-gray-900 font-bold text-base whitespace-pre-wrap leading-relaxed"></p>
+        </div>
+        
+        <div id="foodImgSection" class="hidden mb-5">
+          <p class="text-xs font-extrabold text-gray-500 mb-2.5 uppercase tracking-wide">ইফতারের ছবি</p>
+          <div class="relative h-40 bg-gray-100 rounded-2xl overflow-hidden border border-gray-200 shadow-inner">
+             <div id="foodImgLoader" class="absolute inset-0 flex flex-col items-center justify-center z-10 bg-gray-50"><i class="fas fa-spinner fa-spin text-emerald-500 text-2xl"></i></div>
+             <img id="viewFoodImg" src="" class="w-full h-full object-cover hidden hover:scale-105 transition-transform duration-500">
+          </div>
+        </div>
+        
+        <div class="flex gap-2.5 text-sm">
+          <button onclick="showModalDistance()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(59,130,246,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-route"></i> দূরত্ব</button>
+          <button onclick="openEdit()" class="flex-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-emerald-950 font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(234,179,8,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-edit"></i> এডিট</button>
+          <button onclick="doShare()" class="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_10px_rgba(16,185,129,0.4)] transition-all active:scale-95 flex items-center justify-center gap-1.5"><i class="fas fa-share-alt"></i> শেয়ার</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Feed Section -->
+  <section class="mt-8 mb-10">
+    <h2 class="text-xl font-extrabold text-gray-800 mb-5 flex items-center gap-2 px-1">
+      <span class="relative flex h-4 w-4"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span></span>
+      কাছাকাছি লাইভ ইফতার 📡 
+      <span id="feedLocationFilter" class="text-xs font-bold text-emerald-800 ml-auto bg-emerald-200 px-3 py-1.5 rounded-full border border-emerald-300 shadow-sm hidden"></span>
+    </h2>
+    <div id="feedContainer" class="space-y-4"></div>
+  </section>
+
+  <!-- 🔥 FA Rid Credit Footer -->
+  <footer class="mt-6 text-center pb-8">
+      <p class="text-sm text-gray-600 font-bold">Developed with <span class="text-red-500 animate-pulse inline-block text-lg">❤️</span> by <a href="#" class="text-emerald-700 font-extrabold hover:underline">FA Rid</a></p>
+      <p class="text-xs text-gray-400 mt-1 font-medium">Baradma Bazar, Godagari, Rajshahi</p>
+  </footer>
+</main>
+
+<script>
+/* 🔐 Anti-DevTools & Performance Setup */
+(function(){
+  let _dv = false; let _t = /./; _t.toString = function(){ _dv = true; return ''; };
+  setInterval(function(){ try{ console.profile(); console.profileEnd(); if(window.console && window.console.firebug){ console.clear(); } }catch(e){} }, 2000);
+})();
+
+// 🚨 অরিজিনাল API Keys (Base64 Encoded) 🚨
+const __V__ = (function(){
+  const _sU = atob('aHR0cHM6Ly91cGZjb2Ztc3dzbmNyd2l6ZXl3dy5zdXBhYmFzZS5jbw=='); 
+  const _sK = atob('c2JfcHVibGlzaGFibGVfZ0N3LXc4aEphMHlxbV94WmsyV3dOZ19MVmsxWjR6TA=='); 
+  const _tT = atob('ODQ0NjE5MDE3OTpBQUdOWU52STdQVm9ZdUd5anU4Qm9SYjdtQ2ttZG5Lck9oSQ=='); 
+  const _tC = atob('LTEwMDMyNzA5NzQwOTI='); 
+  return { u: () => _sU, t: () => _tT, c: () => _tC, h: () => ({'apikey': _sK, 'Authorization': `Bearer ${_sK}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation'}) };
+})();
+
+// --- Global Variables ---
+let map, markersGroup, clickMark, trackId, routeLine;
+let uLoc = {lat: 24.4716, lng: 88.3306}; // Default Baradma Fallback
+let curAddr = "বাংলাদেশ", curDistStr = "", curUpzStr = "";
+let selMapLoc = null, mosqBlob = null, foodBlob = null;
+let feed = [], viewPost = null, cdInterval = null;
+let userMarker = null;
+let isLocationVerified = false; 
+
+const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+
+// 🔥 ৬৪ জেলা ও উপজেলার ফুল ডাটাবেস
+const GEO = {
+  "ঢাকা | Dhaka": ["ঢাকা সদর | Dhaka Sadar", "সাভার | Savar", "ধামরাই | Dhamrai", "কেরানীগঞ্জ | Keraniganj", "নবাবগঞ্জ | Nawabganj", "দোহার | Dohar"],
+  "গাজীপুর | Gazipur": ["গাজীপুর সদর | Gazipur Sadar", "কালিয়াকৈর | Kaliakair", "কালীগঞ্জ | Kaliganj", "কাপাসিয়া | Kapasia", "শ্রীপুর | Sreepur"],
+  "নারায়ণগঞ্জ | Narayanganj": ["নারায়ণগঞ্জ সদর | Narayanganj Sadar", "বন্দর | Bandar", "আড়াইহাজার | Araihazar", "রূপগঞ্জ | Rupganj", "সোনারগাঁও | Sonargaon"],
+  "মুন্সীগঞ্জ | Munshiganj": ["মুন্সীগঞ্জ সদর | Munshiganj Sadar", "টংগীবাড়ী | Tongibari", "সিরাজদীখান | Sirajdikhan", "লৌহজং | Louhajang", "শ্রীনগর | Srinagar", "গজারিয়া | Gazaria"],
+  "মানিকগঞ্জ | Manikganj": ["মানিকগঞ্জ সদর | Manikganj Sadar", "সিঙ্গাইর | Singair", "সাটুরিয়া | Saturia", "ঘিওর | Ghior", "শিবালয় | Shibalaya", "হরিরামপুর | Harirampur", "দৌলতপুর | Daulatpur"],
+  "নরসিংদী | Narsingdi": ["নরসিংদী সদর | Narsingdi Sadar", "পলাশ | Palash", "শিবপুর | Shibpur", "মনোহরদী | Monohardi", "বেলাবো | Belabo", "রায়পুরা | Raipura"],
+  "ফরিদপুর | Faridpur": ["ফরিদপুর সদর | Faridpur Sadar", "বোয়ালমারী | Boalmari", "আলফাডাঙ্গা | Alfadanga", "মধুখালী | Madhukhali", "ভাঙ্গা | Bhanga", "নগরকান্দা | Nagarkanda", "চরভদ্রাসন | Charbhadrasan", "সদরপুর | Sadarpur", "শালথা | Saltha"],
+  "মাদারীপুর | Madaripur": ["মাদারীপুর সদর | Madaripur Sadar", "শিবচর | Shibchar", "কালকিনি | Kalkini", "রাজৈর | Rajoir"],
+  "শরীয়তপুর | Shariatpur": ["শরীয়তপুর সদর | Shariatpur Sadar", "জাজিরা | Zajira", "নড়িয়া | Naria", "ভেদরগঞ্জ | Bhedarganj", "ডামুড্যা | Damudya", "গোসাইরহাট | Gosairhat"],
+  "গোপালগঞ্জ | Gopalganj": ["গোপালগঞ্জ সদর | Gopalganj Sadar", "কাশিয়ানী | Kashiani", "মুকসুদপুর | Muksudpur", "কোটালীপাড়া | Kotalipara", "টুঙ্গিপাড়া | Tungipara"],
+  "রাজবাড়ী | Rajbari": ["রাজবাড়ী সদর | Rajbari Sadar", "গোয়ালন্দ | Goalanda", "পাংশা | Pangsha", "বালিয়াকান্দি | Baliakandi", "কালুখালী | Kalukhali"],
+  "কিশোরগঞ্জ | Kishoreganj": ["কিশোরগঞ্জ সদর | Kishoreganj Sadar", "হোসেনপুর | Hossainpur", "পাকুন্দিয়া | Pakundia", "কটিয়াদী | Katiadi", "ভৈরব | Bhairab", "কুলিয়ারচর | Kuliarchar", "বাজিতপুর | Bajitpur", "অষ্টগ্রাম | Austagram", "মিঠামইন | Mithamain", "ইটনা | Itna", "তাড়াইল | Tarail", "করিমগঞ্জ | Karimganj", "নিকলী | Nikli"],
+  "ময়মনসিংহ | Mymensingh": ["ময়মনসিংহ সদর | Mymensingh Sadar", "মুক্তাগাছা | Muktagacha", "ফুলবাড়িয়া | Fulbaria", "ত্রিশাল | Trishal", "ভালুকা | Bhaluka", "গফরগাঁও | Gafargaon", "নান্দাইল | Nandail", "ঈশ্বরগঞ্জ | Ishwarganj", "গৌরীপুর | Gouripur", "ফুলপুর | Phulpur", "তারাকান্দা | Tarakanda", "হালুয়াঘাট | Haluaghat", "ধোবাউড়া | Dhobaura"],
+  "জামালপুর | Jamalpur": ["জামালপুর সদর | Jamalpur Sadar", "মেলান্দহ | Melandah", "ইসলামপুর | Islampur", "দেওয়ানগঞ্জ | Dewanganj", "বকশীগঞ্জ | Bakshiganj", "মাদারগঞ্জ | Madarganj", "সরিষাবাড়ী | Sarishabari"],
+  "নেত্রকোণা | Netrokona": ["নেত্রকোণা সদর | Netrokona Sadar", "বারহাট্টা | Barhatta", "কলমাকান্দা | Kalmakanda", "দুর্গাপুর | Durgapur", "পূর্বধলা | Purbadhala", "মোহনগঞ্জ | Mohanganj", "মদন | Madan", "খালিয়াজুরী | Khaliajuri", "আটপাড়া | Atpara", "কেন্দুয়া | Kendua"],
+  "শেরপুর | Sherpur": ["শেরপুর সদর | Sherpur Sadar", "নকলা | Nakla", "শ্রীবরদী | Sreebardi", "ঝিনাইগাতী | Jhenaigati", "নালিতাবাড়ী | Nalitabari"],
+  "টাঙ্গাইল | Tangail": ["টাঙ্গাইল সদর | Tangail Sadar", "বাসাইল | Basail", "সখিপুর | Sakhipur", "মির্জাপুর | Mirzapur", "দেলদুয়ার | Delduar", "নাগরপুর | Nagarpur", "কালিহাতী | Kalihati", "ঘাটাইল | Ghatail", "মধুপুর | Madhupur", "ধনবাড়ী | Dhanbari", "গোপালপুর | Gopalpur", "ভূঞাপুর | Bhuapur"],
+  "চট্টগ্রাম | Chattogram Chittagong": ["চট্টগ্রাম সদর | Chattogram Sadar", "সীতাকুন্ড | Sitakunda", "মিরসরাই | Mirsharai", "ফটিকছড়ি | Fatikchhari", "হাটহাজারী | Hathazari", "রাউজান | Raozan", "রাঙ্গুনিয়া | Rangunia", "বোয়ালখালী | Boalkhali", "পটিয়া | Patiya", "আনোয়ারা | Anwara", "চন্দনাইশ | Chandanaish", "সাতকানিয়া | Satkania", "লোহাগাড়া | Lohagara", "বাঁশখালী | Banshkhali", "সন্দ্বীপ | Sandwip", "কর্ণফুলী | Karnaphuli"],
+  "কক্সবাজার | Cox's Bazar": ["কক্সবাজার সদর | Cox's Bazar Sadar", "রামু | Ramu", "উখিয়া | Ukhiya", "টেকনাফ | Teknaf", "চকোরিয়া | Chakaria", "পেকুয়া | Pekua", "কুতুবদিয়া | Kutubdia", "মহেশখালী | Moheshkhali"],
+  "কুমিল্লা | Cumilla Comilla": ["কুমিল্লা সদর | Cumilla Sadar", "চৌদ্দগ্রাম | Chauddagram", "লাকসাম | Laksam", "বরুড়া | Barura", "নাঙ্গলকোট | Nangalkot", "মনোহরগঞ্জ | Monoharganj", "বুড়িচং | Burichang", "ব্রাহ্মণপাড়া | Brahmanpara", "চান্দিনা | Chandina", "দাউদকান্দি | Daudkandi", "মেঘনা | Meghna", "হোমনা | Homna", "তিতাস | Titas", "মুরাদনগর | Muradnagar", "দেবিদ্বার | Debidwar", "সদর দক্ষিণ | Sadar South", "লালমাই | Lalmai"],
+  "ব্রাহ্মণবাড়িয়া | Brahmanbaria": ["ব্রাহ্মণবাড়িয়া সদর | Brahmanbaria Sadar", "আশুগঞ্জ | Ashuganj", "সরাইল | Sarail", "নাসিরনগর | Nasirnagar", "নবীনগর | Nabinagar", "বাঞ্ছারামপুর | Bancharampur", "কসবা | Kasba", "আখাউড়া | Akhaura", "বিজয়নগর | Bijoynagar"],
+  "চাঁদপুর | Chandpur": ["চাঁদপুর সদর | Chandpur Sadar", "ফরিদগঞ্জ | Faridganj", "মতলব উত্তর | Matlab North", "মতলব দক্ষিণ | Matlab South", "হাজীগঞ্জ | Hajiganj", "শাহরাস্তি | Shahrasti", "কচুয়া | Kachua", "হাইমচর | Haimchar"],
+  "নোয়াখালী | Noakhali": ["নোয়াখালী সদর | Noakhali Sadar", "বেগমগঞ্জ | Begumganj", "সোনাইমুড়ী | Sonaimuri", "চাটখিল | Chatkhil", "সেনবাগ | Senbagh", "কোম্পানীগঞ্জ | Companiganj", "সুবর্ণচর | Subarnachar", "হাতিয়া | Hatiya", "কবিরহাট | Kabirhat"],
+  "ফেনী | Feni": ["ফেনী সদর | Feni Sadar", "দাগনভূঞা | Daganbhuiyan", "সোনাগাজী | Sonagazi", "ছাগলনাইয়া | Chhagalnaiya", "পরশুরাম | Parshuram", "ফুলগাজী | Fulgazi"],
+  "লক্ষ্মীপুর | Lakshmipur": ["লক্ষ্মীপুর সদর | Lakshmipur Sadar", "রামগঞ্জ | Ramganj", "রায়পুর | Raipur", "রামগতি | Ramgati", "কমলনগর | Kamalnagar"],
+  "খাগড়াছড়ি | Khagrachari": ["খাগড়াছড়ি সদর | Khagrachari Sadar", "দীঘিনালা | Dighinala", "পানছড়ি | Panchari", "মহালছড়ি | Mahalchhari", "মাটিরাঙ্গা | Matiranga", "গুইমারা | Guimara", "রামগড় | Ramgarh", "মানিকছড়ি | Manikchhari", "লক্ষ্মীছড়ি | Lakshmichhari"],
+  "রাঙ্গামাটি | Rangamati": ["রাঙ্গামাটি সদর | Rangamati Sadar", "কাউখালী | Kaukhali", "কাপ্তাই | Kaptai", "জুরাছড়ি | Juraichhari", "বরকল | Barkal", "বাঘাইছড়ি | Baghaichhari", "লংগদু | Langadu", "নানিয়ারচর | Naniarchar", "বিলাইছড়ি | Belaichhari", "রাজস্থলী | Rajasthali"],
+  "বান্দরবান | Bandarban": ["বান্দরবান সদর | Bandarban Sadar", "রোয়াংছড়ি | Rowangchhari", "রুমা | Ruma", "থানচি | Thanchi", "লামা | Lama", "আলীকদম | Alikadam", "নাইক্ষ্যংছড়ি | Naikhongchhari"],
+  "রাজশাহী | Rajshahi": ["রাজশাহী সদর | Rajshahi Sadar", "গোদাগাড়ী | Godagari", "তানোর | Tanore", "মোহনপুর | Mohanpur", "বাগমারা | Bagmara", "দুর্গাপুর | Durgapur", "পুঠিয়া | Puthia", "চারঘাট | Charghat", "বাঘা | Bagha"],
+  "বগুড়া | Bogura Bogra": ["বগুড়া সদর | Bogura Sadar", "শাজাহানপুর | Shajahanpur", "শিবগঞ্জ | Shibganj", "সোনাতলা | Sonatala", "গাবতলী | Gabtali", "সারিয়াকান্দি | Sariakandi", "ধুনট | Dhunat", "শেরপুর | Sherpur", "নন্দীগ্রাম | Nandigram", "কাহালু | Kahaloo", "দুপচাঁচিয়া | Dupchanchia", "আদমদীঘি | Adamdighi"],
+  "নওগাঁ | Naogaon": ["নওগাঁ সদর | Naogaon Sadar", "মহাদেবপুর | Mohadevpur", "বদলগাছী | Badalgachhi", "পত্নীতলা | Patnitala", "ধামইরহাট | Dhamoirhat", "সাপাহার | Sapahar", "পোরশা | Porsha", "মান্দা | Manda", "নিয়ামতপুর | Niamatpur", "আত্রাই | Atrai", "রাণীনগর | Raninagar"],
+  "নাটোর | Natore": ["নাটোর সদর | Natore Sadar", "নলডাঙ্গা | Naldanga", "সিংড়া | Singra", "গুরুদাসপুর | Gurudaspur", "বড়াইগ্রাম | Baraigram", "লালপুর | Lalpur", "বাগাতিপাড়া | Bagatipara"],
+  "চাঁপাইনবাবগঞ্জ | Chapainawabganj Nawabganj": ["চাঁপাইনবাবগঞ্জ সদর | Chapainawabganj Sadar", "শিবগঞ্জ | Shibganj", "গোমস্তাপুর | Gomastapur", "নাচোল | Nachole", "ভোলাহাট | Bholahat"],
+  "পাবনা | Pabna": ["পাবনা সদর | Pabna Sadar", "ঈশ্বরদী | Ishwardi", "আটঘরিয়া | Atgharia", "চাটমোহর | Chatmohar", "ভাঙ্গুরা | Bhangura", "ফরিদপুর | Faridpur", "সুজানগর | Sujanagar", "বেড়া | Bera", "সাঁথিয়া | Santhia"],
+  "সিরাজগঞ্জ | Sirajganj": ["সিরাজগঞ্জ সদর | Sirajganj Sadar", "বেলকুচি | Belkuchi", "চৌহালী | Chauhali", "কামারখন্দ | Kamarkhanda", "কাজীপুর | Kazipur", "রায়গঞ্জ | Raiganj", "শাহজাদপুর | Shahjadpur", "তাড়াশ | Tarash", "উল্লাপাড়া | Ullapara"],
+  "জয়পুরহাট | Joypurhat": ["জয়পুরহাট সদর | Joypurhat Sadar", "পাঁচবিবি | Panchbibi", "আক্কেলপুর | Akkelpur", "কালাই | Kalai", "ক্ষেতলাল | Khetlal"],
+  "রংপুর | Rangpur": ["রংপুর সদর | Rangpur Sadar", "গঙ্গাচড়া | Gangachara", "তারাগঞ্জ | Taraganj", "বদরগঞ্জ | Badarganj", "মিঠাপুকুর | Mithapukur", "পীরগঞ্জ | Pirganj", "পীরগাছা | Pirgacha", "কাউনিয়া | Kaunia"],
+  "দিনাজপুর | Dinajpur": ["দিনাজপুর সদর | Dinajpur Sadar", "বিরল | Birol", "বোচাগঞ্জ | Bochaganj", "কাহারোল | Kaharol", "বীরগঞ্জ | Birganj", "খানসামা | Khansama", "চিরিরবন্দর | Chirirbandar", "পার্বতীপুর | Parbatipur", "ফুলবাড়ী | Phulbari", "নবাবগঞ্জ | Nawabganj", "বিরামপুর | Birampur", "হাকিমপুর | Hakimpur", "ঘোড়াঘাট | Ghoraghat"],
+  "গাইবান্ধা | Gaibandha": ["গাইবান্ধা সদর | Gaibandha Sadar", "সাদুল্লাপুর | Sadullapur", "পলাশবাড়ী | Palashbari", "গোবিন্দগঞ্জ | Gobindaganj", "সাঘাটা | Saghata", "ফুলছড়ি | Phulchhari", "সুন্দরগঞ্জ | Sundarganj"],
+  "কুড়িগ্রাম | Kurigram": ["কুড়িগ্রাম সদর | Kurigram Sadar", "রাজারহাট | Rajarhat", "উলিপুর | Ulipur", "চিলমারী | Chilmari", "রৌমারী | Roumari", "রাজীবপুর | Rajibpur", "নাগেশ্বরী | Nageshwari", "ভুরুঙ্গামারী | Bhurungamari", "ফুলবাড়ী | Phulbari"],
+  "নীলফামারী | Nilphamari": ["নীলফামারী সদর | Nilphamari Sadar", "সৈয়দপুর | Saidpur", "জলঢাকা | Jaldhaka", "কিশোরগঞ্জ | Kishoreganj", "ডোমার | Domar", "ডিমলা | Dimla"],
+  "লালমনিরহাট | Lalmonirhat": ["লালমনিরহাট সদর | Lalmonirhat Sadar", "আদিতমারী | Aditmari", "কালীগঞ্জ | Kaliganj", "হাতীবান্ধা | Hatibandha", "পাটগ্রাম | Patgram"],
+  "ঠাকুরগাঁও | Thakurgaon": ["ঠাকুরগাঁও সদর | Thakurgaon Sadar", "পীরগঞ্জ | Pirganj", "রানীশংকৈল | Ranisankail", "বালিয়াডাঙ্গী | Baliadangi", "হরিপুর | Haripur"],
+  "পঞ্চগড় | Panchagarh": ["পঞ্চগড় সদর | Panchagarh Sadar", "বোদা | Boda", "দেবীগঞ্জ | Debiganj", "আটোয়ারী | Atwari", "তেঁতুলিয়া | Tetulia"],
+  "খুলনা | Khulna": ["খুলনা সদর | Khulna Sadar", "বটিয়াঘাটা | Batiaghata", "ডুমুরিয়া | Dumuria", "ফুলতলা | Phultala", "দিঘলিয়া | Dighalia", "রূপসা | Rupsha", "তেরখাদা | Terokhada", "কয়রা | Koyra", "পাইকগাছা | Paikgachha", "দাকোপ | Dacope"],
+  "যশোর | Jashore Jessore": ["যশোর সদর | Jashore Sadar", "বাঘারপাড়া | Bagherpara", "অভয়নগর | Abhaynagar", "মনিরামপুর | Manirampur", "কেশবপুর | Keshabpur", "চৌগাছা | Chaugachha", "ঝিকরগাছা | Jhikargachha", "শার্শা | Sharsha"],
+  "সাতক্ষীরা | Satkhira": ["সাতক্ষীরা সদর | Satkhira Sadar", "কলারোয়া | Kalaroa", "তালা | Tala", "আশাশুনি | Assasuni", "দেবহাটা | Debhata", "কালীগঞ্জ | Kaliganj", "শ্যামনগর | Shyamnagar"],
+  "বাগেরহাট | Bagerhat": ["বাগেরহাট সদর | Bagerhat Sadar", "ফকিরহাট | Fakirhat", "মোল্লাহাট | Mollahat", "চিতলমারী | Chitalmari", "কচুয়া | Kachua", "রামপাল | Rampal", "মোংলা | Mongla", "মোরেলগঞ্জ | Morrelganj", "শরণখোলা | Sarankhola"],
+  "ঝিনাইদহ | Jhenaidah": ["ঝিনাইদহ সদর | Jhenaidah Sadar", "শৈলকুপা | Shailkupa", "হরিণাকুন্ডু | Harinakunda", "কালীগঞ্জ | Kaliganj", "কোটচাঁদপুর | Kotchandpur", "মহেশপুর | Moheshpur"],
+  "চুয়াডাঙ্গা | Chuadanga": ["চুয়াডাঙ্গা সদর | Chuadanga Sadar", "আলমডাঙ্গা | Alamdanga", "দামুড়হুদা | Damurhuda", "জীবননগর | Jibannagar"],
+  "কুষ্টিয়া | Kushtia": ["কুষ্টিয়া সদর | Kushtia Sadar", "কুমারখালী | Kumarkhali", "খোকসা | Khoksa", "মিরপুর | Mirpur", "ভেড়ামারা | Bheramara", "দৌলতপুর | Daulatpur"],
+  "মেহেরপুর | Meherpur": ["মেহেরপুর সদর | Meherpur Sadar", "গাংনী | Gangni", "মুজিবনগর | Mujibnagar"],
+  "মাগুরা | Magura": ["মাগুরা সদর | Magura Sadar", "শ্রীপুর | Sreepur", "শালিখা | Shalikha", "মহম্মদপুর | Mohammadpur"],
+  "নড়াইল | Narail": ["নড়াইল সদর | Narail Sadar", "লোহাগড়া | Lohagara", "কালিয়া | Kalia"],
+  "বরিশাল | Barishal Barisal": ["বরিশাল সদর | Barishal Sadar", "বাবুগঞ্জ | Babuganj", "উজিরপুর | Wazirpur", "বাকেরগঞ্জ | Bakerganj", "গৌরনদী | Gournadi", "আগৈলঝাড়া | Agailjhara", "বানারীপাড়া | Banaripara", "মুলাদী | Muladi", "হিজলা | Hizla", "মেহেন্দিগঞ্জ | Mehendiganj"],
+  "পটুয়াখালী | Patuakhali": ["পটুয়াখালী সদর | Patuakhali Sadar", "দুমকি | Dumki", "মির্জাগঞ্জ | Mirzaganj", "বাউফল | Bauphal", "দশমিনা | Dashmina", "গলাচিপা | Galachipa", "কলাপাড়া | Kalapara", "রাঙ্গাবালী | Rangabali"],
+  "ভোলা | Bhola": ["ভোলা সদর | Bhola Sadar", "দৌলতখান | Daulatkhan", "বোরহানউদ্দিন | Borhanuddin", "তজুমদ্দিন | Tazumuddin", "লালমোহন | Lalmohan", "চরফ্যাশন | Char Fasson", "মনপুরা | Monpura"],
+  "পিরোজপুর | Pirojpur": ["পিরোজপুর সদর | Pirojpur Sadar", "নেছারাবাদ | Nesarabad", "কাউখালী | Kaukhali", "ভান্ডারিয়া | Bhandaria", "মঠবাড়িয়া | Mathbaria", "নাজিরপুর | Nazirpur", "ইন্দুরকানী | Indurkani"],
+  "বরগুনা | Barguna": ["বরগুনা সদর | Barguna Sadar", "আমতলী | Amtali", "তালতলী | Taltali", "পাথরঘাটা | Patharghata", "বামনা | Bamna", "বেতাগী | Betagi"],
+  "ঝালকাঠি | Jhalokati": ["ঝালকাঠি সদর | Jhalokati Sadar", "নলছিটি | Nalchity", "রাজাপুর | Rajapur", "কাঁঠালিয়া | Kathalia"],
+  "সিলেট | Sylhet": ["সিলেট সদর | Sylhet Sadar", "দক্ষিণ সুরমা | Dakshin Surma", "বিশ্বনাথ | Bishwanath", "ওসমানীনগর | Osmaninagar", "বালাগঞ্জ | Balaganj", "ফেঞ্চুগঞ্জ | Fenchuganj", "গোলাপগঞ্জ | Golapganj", "বিয়ানীবাজার | Beanibazar", "জকিগঞ্জ | Zakiganj", "কানাইঘাট | Kanaighat", "জৈন্তাপুর | Jaintiapur", "গোয়াইনঘাট | Gowainghat", "কোম্পানীগঞ্জ | Companiganj"],
+  "মৌলভীবাজার | Moulvibazar": ["মৌলভীবাজার সদর | Moulvibazar Sadar", "রাজনগর | Rajnagar", "কুলাউড়া | Kulaura", "জুড়ী | Juri", "বড়লেখা | Barlekha", "কমলগঞ্জ | Kamalganj", "শ্রীমঙ্গল | Sreemangal"],
+  "হবিগঞ্জ | Habiganj": ["হবিগঞ্জ সদর | Habiganj Sadar", "নবীগঞ্জ | Nabiganj", "আজমিরীগঞ্জ | Ajmiriganj", "বানিয়াচং | Baniachong", "লাখাই | Lakhai", "চুনারুঘাট | Chunarughat", "মাধবপুর | Madhabpur", "বাহুবল | Bahubal", "শায়েস্তাগঞ্জ | Shayestaganj"],
+  "সুনামগঞ্জ | Sunamganj": ["সুনামগঞ্জ সদর | Sunamganj Sadar", "দক্ষিণ সুনামগঞ্জ | Dakshin Sunamganj", "বিশ্বম্ভরপুর | Bishwamvarpur", "ছাতক | Chhatak", "দোয়ারাবাজার | Dowarabazar", "তাহিরপুর | Tahirpur", "জামালগঞ্জ | Jamalganj", "দিরাই | Derai", "শাল্লা | Shalla", "ধর্মপাশা | Dharmapasha", "মধ্যনগর | Madhyanagar"]
+};
+
+function isNetworkOk() {
+   if(!navigator.onLine) { toast("❌ ইন্টারনেট কানেকশন নেই! ক্যাশ ডেটা দেখানো হচ্ছে।"); return false; }
+   return true;
+}
+
+// 🧹 Auto-Delete Cache at Midnight Frontend Trick
+function checkMidnightWipe() {
+    let todayStr = new Date().toISOString().split('T')[0];
+    let lastDate = localStorage.getItem('iftarTracker_date');
+    if (lastDate !== todayStr) {
+        localStorage.removeItem('iftarTracker_feed');
+        localStorage.removeItem('iftarTracker_feed_time');
+        localStorage.setItem('iftarTracker_date', todayStr);
+    }
+}
+
+window.onload = async function() {
+  checkMidnightWipe();
+  
+  let d = new Date();
+  document.getElementById('headerDate').innerText = d.toLocaleDateString('bn-BD', {day:'numeric', month:'long'}).replace(/\d/g, x=>bnDigits[x]);
+  
+  initMap();
+  initDists();
+  
+  // ⚡ 18 Crore Users Hack: Smart LocalStorage Cache (5 mins)
+  let cachedFeed = localStorage.getItem('iftarTracker_feed');
+  let cacheTime = localStorage.getItem('iftarTracker_feed_time');
+  
+  if (cachedFeed && cacheTime && (Date.now() - parseInt(cacheTime) < 300000)) {
+      feed = JSON.parse(cachedFeed);
+      renderFeed(); renderPins();
+  } else {
+      if(isNetworkOk()) await fetchFeed(); 
+  }
+  
+  let targetId = new URLSearchParams(window.location.search).get('id');
+  if(targetId) setTimeout(() => openViewModal(targetId, true), 1000);
+  
+  let savedLoc = localStorage.getItem('iftarTracker_uLoc');
+  if(savedLoc) {
+     uLoc = JSON.parse(savedLoc);
+     isLocationVerified = true;
+     map.setView([uLoc.lat, uLoc.lng], 16);
+     if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
+     document.getElementById('locationStatus').innerHTML = "📍 সেভ করা এলাকা";
+     loadCountdown(uLoc.lat, uLoc.lng);
+     if(isNetworkOk()) reverseGeocode(uLoc.lat, uLoc.lng, true);
+     
+     if(navigator.geolocation) {
+         trackId = navigator.geolocation.watchPosition(pos => {
+             isLocationVerified = true;
+             uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+             if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
+             if(!document.getElementById('modalDistDisplay').classList.contains('hidden')) throttledUpdateModalDistance();
+             renderFeed(); 
+         }, ()=>{}, {enableHighAccuracy: true, maximumAge: 5000, timeout: 15000});
+     }
+  } else {
+     map.setView([uLoc.lat, uLoc.lng], 16);
+     document.getElementById('locationStatus').innerHTML = "ম্যাপ রেডি। 🎯 বাটনে ক্লিক করে লোকেশন অন করুন!";
+     loadCountdown(uLoc.lat, uLoc.lng); 
+     toast("সঠিক ইফতার পেতে লোকেশন পারমিশন দিন 🎯", 5000);
+  }
+};
+
+// --- API Suggest Nearby Mosques ---
+async function fetchNearbyMosques(lat, lng) {
+   let q = `[out:json];node["amenity"="place_of_worship"]["religion"="muslim"](around:1000,${lat},${lng});out 5;`;
+   try {
+     let r = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+     let d = await r.json();
+     if(d.elements.length > 0) {
+        document.getElementById('nearbyContainer').classList.remove('hidden');
+        let html = '';
+        d.elements.forEach(el => {
+           if(el.tags && el.tags.name) {
+              html += `<button onclick="flyAndOpenForm(${el.lat}, ${el.lon}, '${el.tags.name.replace(/'/g,"\\'")}')" class="bg-white border border-emerald-300 text-emerald-900 text-xs font-bold px-4 py-2 rounded-xl shadow-md hover:bg-emerald-100 transition-colors"><i class="fas fa-plus text-red-500 mr-1"></i> ${el.tags.name}</button>`;
+           }
+        });
+        document.getElementById('nearbyList').innerHTML = html;
+     }
+   } catch(e) {}
+}
+
+function flyAndOpenForm(lat, lng, name) {
+   map.flyTo([lat, lng], 19, {animate: true});
+   map.fire('click', {latlng: {lat: lat, lng: lng}, autoName: name});
+}
+
+// --- Priority Location & Tri-Lingual Dropdown Logic ---
+async function flyToAdminArea(query, zoomLevel) {
+  try {
+    document.getElementById('locationStatus').innerHTML = "ম্যাপে খোঁজা হচ্ছে... 🚁";
+    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+    let d = await r.json();
+    if(d && d.length > 0) {
+      map.flyTo([d[0].lat, d[0].lon], zoomLevel, { animate: true, duration: 1.5 });
+      document.getElementById('locationStatus').innerHTML = "📍 " + d[0].display_name.split(',')[0];
+    }
+  } catch(e) {}
+}
+
+async function reverseGeocode(lat, lng, prioritize = false) {
+  try {
+    let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
+    let d = await r.json();
+    curAddr = d.display_name;
+    
+    if(prioritize && d.address) {
+      curDistStr = (d.address.state || d.address.county || "").replace(' জেলা', '').replace(' District', '').trim();
+      curUpzStr = (d.address.suburb || d.address.town || d.address.city || "").replace(' উপজেলা', '').replace(' Upazila', '').trim();
+      initDists(true); 
+      fetchNearbyMosques(lat, lng);
+    }
+  } catch(e){}
+}
+
+function getBnName(fullStr) { return fullStr.split('|')[0].trim(); }
+
+function mkLi(fullText, cb, isPriority = false) {
+  let bnText = getBnName(fullText);
+  let li = document.createElement('li');
+  li.dataset.search = fullText.toLowerCase();
+  li.className = `p-3 cursor-pointer border-b border-gray-100 transition-colors ${isPriority ? 'bg-emerald-100 font-bold text-emerald-900' : 'text-gray-800 hover:bg-emerald-50'}`;
+  li.innerHTML = isPriority ? `📍 আপনার বর্তমান: ${bnText}` : bnText;
+  li.onclick = () => cb(fullText);
+  return li;
+}
+
+function initDists(priority = false) {
+  let ul = document.getElementById('distUl'); ul.innerHTML = '';
+  let dKeys = Object.keys(GEO).sort();
+  let foundDist = "";
+
+  if(priority && curDistStr) {
+    foundDist = dKeys.find(k => k.includes(curDistStr));
+    if(foundDist) ul.appendChild(mkLi(foundDist, selDistrict, true));
+  }
+  dKeys.forEach(d => { if(d !== foundDist) ul.appendChild(mkLi(d, selDistrict)); });
+}
+
+function selDistrict(dFull) {
+  selDist = getBnName(dFull); 
+  document.getElementById('distBtnText').innerText = selDist;
+  document.getElementById('distList').classList.add('hidden');
+  
+  selUpz = ''; document.getElementById('upzBtnText').innerText = 'উপজেলা';
+  let vInp = document.getElementById('villageInput');
+  vInp.disabled = true; vInp.placeholder = "আগে উপজেলা সিলেক্ট করুন";
+  
+  let ul = document.getElementById('upzUl'); ul.innerHTML = '';
+  let foundUpz = "";
+  if(curUpzStr) {
+     foundUpz = GEO[dFull].find(u => u.includes(curUpzStr));
+     if(foundUpz) ul.appendChild(mkLi(foundUpz, selUpazila, true));
+  }
+  GEO[dFull].sort().forEach(u => { if(u !== foundUpz) ul.appendChild(mkLi(u, selUpazila)); });
+  
+  document.getElementById('upzBtn').disabled = false; 
+  document.getElementById('upzBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+
+  flyToAdminArea(`${selDist} District, Bangladesh`, 10);
+  renderFeed();
+}
+
+function selUpazila(uFull) {
+  selUpz = getBnName(uFull); 
+  document.getElementById('upzBtnText').innerText = selUpz;
+  document.getElementById('upzList').classList.add('hidden');
+  let vInp = document.getElementById('villageInput');
+  vInp.disabled = false; vInp.classList.remove('opacity-50');
+  vInp.placeholder = "গ্রামের নাম বা গুগল ম্যাপ লিংক পেস্ট করুন..."; vInp.focus();
+
+  flyToAdminArea(`${selUpz}, ${selDist}, Bangladesh`, 13);
+  renderFeed();
+}
+
+function toggleDD(id) {
+  let el = document.getElementById(id);
+  ['distList', 'upzList', 'villageSugg'].forEach(x => { if(x !== id) document.getElementById(x).classList.add('hidden'); });
+  el.classList.toggle('hidden');
+}
+
+function filterList(iId, uId) {
+  let v = document.getElementById(iId).value.toLowerCase();
+  document.getElementById(uId).querySelectorAll('li').forEach(li => {
+    let searchStr = li.dataset.search || li.innerText.toLowerCase();
+    li.style.display = searchStr.includes(v) ? '' : 'none';
+  });
+}
+
+// --- Smart Map Link & Text Search ---
+let _vt;
+function debounceVillage() { clearTimeout(_vt); _vt = setTimeout(execVillageSearch, 400); }
+
+async function execVillageSearch() {
+  if(!isNetworkOk()) return;
+  let val = document.getElementById('villageInput').value.trim();
+  let sb = document.getElementById('villageSugg');
+  
+  if(val.length < 1) { sb.classList.add('hidden'); return; }
+
+  let coordMatch = val.match(/@?(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
+  if(coordMatch) {
+    let lat = parseFloat(coordMatch[1]), lng = parseFloat(coordMatch[2]);
+    map.flyTo([lat, lng], 19, {animate: true, duration: 1.5});
+    sb.classList.add('hidden');
+    reverseGeocode(lat, lng);
+    return;
+  }
+
+  let query = val;
+  if(selDist && selUpz) query = `${val}, ${selUpz}, ${selDist}, Bangladesh`;
+  else if(val.length > 5) query = val; 
+
+  sb.innerHTML = '<li class="p-4 text-center text-emerald-700 font-bold"><i class="fas fa-spinner fa-spin text-xl"></i> খুঁজছি...</li>';
+  sb.classList.remove('hidden');
+
+  try {
+    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&accept-language=bn&limit=5`);
+    let data = await r.json();
+    sb.innerHTML = '';
+    
+    if(data.length) {
+      data.forEach(pl => {
+        let li = document.createElement('li');
+        li.className = "p-4 cursor-pointer border-b border-gray-100 hover:bg-emerald-100 text-sm font-bold text-gray-800 flex gap-2 transition-colors";
+        li.innerHTML = `<i class="fas fa-map-marker-alt text-emerald-600 mt-1 text-lg"></i> <div>${pl.display_name}</div>`;
+        li.onclick = () => {
+          map.flyTo([pl.lat, pl.lon], 18, {animate:true});
+          document.getElementById('locationStatus').innerHTML = '📍 ' + pl.name;
+          curAddr = pl.display_name;
+          sb.classList.add('hidden');
+          document.getElementById('villageInput').value = pl.name;
+        };
+        sb.appendChild(li);
+      });
+    } else {
+      sb.innerHTML = '<li class="p-4 text-center text-sm text-red-500 font-bold">পাওয়া যায়নি! সঠিক বানান বা ম্যাপ লিংক দিন।</li>';
+    }
+  } catch(e) { sb.innerHTML = '<li class="p-4 text-center text-sm text-gray-500 font-bold">ইন্টারনেট সমস্যা।</li>'; }
+}
+
+// --- Map Logic & Geofencing ---
+function checkGeofence(tLat, tLng) {
+    if(!isLocationVerified) return false;
+    let dist = L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng));
+    return dist <= 1000; 
+}
+
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([uLoc.lat, uLoc.lng], 16); 
+  map.attributionControl.setPrefix('<span style="color:#059669;font-weight:bold;">Iftar Tracker BD</span>');
+  L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
+  
+  markersGroup = L.markerClusterGroup({
+      maxClusterRadius: 40,
+      iconCreateFunction: function(cluster) {
+          return L.divIcon({ html: `<div class="custom-cluster-icon w-12 h-12">${cluster.getChildCount()}</div>`, className: '', iconSize: [48, 48] });
+      }
+  });
+  map.addLayer(markersGroup);
+  
+  let uIcon = L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/1004/1004233.png', iconSize:[45,45], iconAnchor:[22,45]});
+  userMarker = L.marker([uLoc.lat, uLoc.lng], {icon: uIcon, zIndexOffset: 1000}).addTo(map);
+
+  map.on('click', async e => {
+    let lat = e.latlng.lat, lng = e.latlng.lng;
+    
+    let snappedPin = feed.find(p => p.mosques?.lat && L.latLng(lat, lng).distanceTo(L.latLng(p.mosques.lat, p.mosques.lng)) < 30);
+    if(snappedPin) {
+        toast("📍 কাছাকাছি একটি ইফতার পাওয়া গেছে, এডিট মোড চালু হলো!");
+        return openViewModal(snappedPin.id, true);
+    }
+
+    if(!isLocationVerified) return requestLocationPrompt();
+    if(!checkGeofence(lat, lng)) return toast("❌ আপনি এই স্থান থেকে ১ কি.মি. এর বাইরে আছেন। শুধু কাছের ইফতার অ্যাড করা যাবে।");
+
+    selMapLoc = {lat, lng};
+    document.getElementById('editMosqueId').value = '';
+    document.getElementById('mosqueName').value = e.autoName || '';
+    document.getElementById('mosqueName').disabled = false;
+    document.getElementById('providerName').disabled = false;
+    document.getElementById('providerName').value = '';
+    document.getElementById('providerPhone').value = ''; // Reset Phone
+    document.getElementById('mosqueImgReq').innerText = '*';
+    document.getElementById('formTitle').innerHTML = '<i class="fas fa-map-pin text-red-500"></i> নতুন ইফতার যোগ করুন';
+    document.getElementById('submitBtnText').innerText = 'লোকেশন সেভ করুন 🚀';
+    
+    document.getElementById('formSection').classList.remove('hidden');
+    if(clickMark) map.removeLayer(clickMark);
+    
+    let aIcon = L.divIcon({ className: 'custom-pin', html: `<i class="fas fa-map-marker-alt fa-3x" style="color: #ef4444;"></i>`, iconSize: [40, 40], iconAnchor: [20, 40] });
+    clickMark = L.marker([lat, lng], {icon: aIcon}).addTo(map);
+    
+    try {
+      let r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=bn`);
+      let d = await r.json();
+      if(!e.autoName) document.getElementById('mosqueName').value = d.address?.amenity || '';
+      curAddr = d.display_name;
+    } catch(err){}
+    document.getElementById('formSection').scrollIntoView({behavior: 'smooth'});
+  });
+}
+
+function requestLocationPrompt() {
+    toast("লোকেশন পারমিশন দিন 🎯", 3000);
+    startLiveTracking(true);
+}
+
+function startLiveTracking(isManualClick = false) {
+  document.getElementById('locationStatus').innerHTML = "লোকেশন খোঁজা হচ্ছে... (স্যাটেলাইট)";
+  if(!navigator.geolocation) return toast("আপনার ডিভাইসে লোকেশন সাপোর্ট করে না!");
+  
+  if(trackId) navigator.geolocation.clearWatch(trackId);
+  trackId = navigator.geolocation.watchPosition(
+    pos => {
+      isLocationVerified = true;
+      uLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      localStorage.setItem('iftarTracker_uLoc', JSON.stringify(uLoc)); 
+      if(userMarker) userMarker.setLatLng([uLoc.lat, uLoc.lng]);
+      map.flyTo([uLoc.lat, uLoc.lng], 18, {animate:true, duration: 1.5});
+      document.getElementById('locationStatus').innerHTML = "📍 লাইভ ট্র্যাকিং অন!";
+      
+      if(!document.getElementById('modalDistDisplay').classList.contains('hidden')) throttledUpdateModalDistance(); 
+      renderFeed(); 
+      loadCountdown(uLoc.lat, uLoc.lng);
+      reverseGeocode(uLoc.lat, uLoc.lng, true);
+    },
+    (error) => { 
+      let msg = error.code === 1 ? "পারমিশন ডিনাইড (Denied)। সেটিংস চেক করুন!" : "লোকেশন পাওয়া যাচ্ছে না।";
+      if(isManualClick) toast("⚠️ " + msg);
+      document.getElementById('locationStatus').innerHTML = "📍 ডিফল্ট: বারাদমা বাজার";
+    },
+    {enableHighAccuracy: true, timeout: 15000, maximumAge: 5000} 
+  );
+}
+
+// --- ⏱️ AlAdhan Accurate Countdown (English AM/PM with Fast Caching) ---
+function to12HourBn(time24) {
+  let [h, m] = time24.split(':').map(Number);
+  let ampm = h >= 12 ? 'PM' : 'AM'; 
+  h = h % 12 || 12;
+  return (h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0')).replace(/\d/g, d => bnDigits[d]) + ' ' + ampm;
+}
+
+async function loadCountdown(lat, lng) {
+  let todayStr = new Date().toISOString().split('T')[0];
+  let cachedTime = JSON.parse(localStorage.getItem('iftarTracker_timing') || '{}');
+  let mg24 = "";
+
+  if(cachedTime.date === todayStr && cachedTime.lat === lat) {
+      mg24 = cachedTime.time; // 🔥 0ms Latency Load!
+  } else {
+      try {
+        let r = await fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lng}&method=1`);
+        let d = await r.json();
+        mg24 = d.data.timings.Maghrib; 
+        localStorage.setItem('iftarTracker_timing', JSON.stringify({date: todayStr, time: mg24, lat: lat}));
+      } catch(e){ return; }
+  }
+
+  let mg12Bn = to12HourBn(mg24); 
+  let [h, m] = mg24.split(':').map(Number);
+  
+  if(cdInterval) clearInterval(cdInterval);
+  let bar = document.getElementById('iftarCountdownBar');
+  bar.classList.remove('hidden');
+  
+  cdInterval = setInterval(() => {
+    let now = new Date(), iftar = new Date();
+    iftar.setHours(h, m, 0, 0);
+    let diff = iftar - now;
+    if(diff > 0) {
+      let hrs = Math.floor(diff/3600000), mins = Math.floor((diff%3600000)/60000), secs = Math.floor((diff%60000)/1000);
+      let hStr = hrs > 0 ? hrs.toString().padStart(2, '0') + ' ঘণ্টা ' : '';
+      let timeStr = (hStr + mins.toString().padStart(2, '0') + ' মিনিট ' + secs.toString().padStart(2, '0') + ' সেকেন্ড').replace(/\d/g, x => bnDigits[x]);
+      bar.innerHTML = `🌙 ইফতার বাকি: ${timeStr} | আজান: ${mg12Bn}`;
+    } else {
+      bar.innerHTML = `✅ আলহামদুলিল্লাহ! ইফতারের সময় হয়ে গেছে (${mg12Bn})`;
+      clearInterval(cdInterval);
+    }
+  }, 1000);
+}
+
+// --- 📡 Supabase Fetch & Smart Sorting ---
+async function fetchFeed() {
+  if(!isNetworkOk()) return;
+  try {
+    let today = new Date(Date.now() + 6*3600000).toISOString().split('T')[0];
+    let r = await fetch(__V__.u()+'/rest/v1/iftar_updates?select=*,mosques(id,name,address,lat,lng,image_url)&date=eq.'+today+'&order=id.desc', {headers: __V__.h()});
+    if(r.ok) { 
+        feed = await r.json(); 
+        localStorage.setItem('iftarTracker_feed', JSON.stringify(feed)); // 💾 Cache Feed
+        localStorage.setItem('iftarTracker_feed_time', Date.now().toString());
+        renderFeed(); renderPins(); 
+    }
+  } catch(e){}
+}
+
+function renderFeed() {
+  let c = document.getElementById('feedContainer');
+  let filterEl = document.getElementById('feedLocationFilter');
+  
+  let fFeed = selUpz ? feed.filter(p => p.mosques?.address && p.mosques.address.includes(selUpz)) : feed;
+  if(selUpz) { filterEl.innerText = `(${selUpz})`; filterEl.classList.remove('hidden'); } 
+  else { filterEl.classList.add('hidden'); }
+
+  fFeed = fFeed.map(p => {
+      let distKm = 9999;
+      if(p.mosques?.lat && uLoc.lat) distKm = L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(p.mosques.lat, p.mosques.lng)) / 1000;
+      return {...p, distKm};
+  }).sort((a, b) => a.distKm - b.distKm);
+
+  if(!fFeed.length) { c.innerHTML = '<div class="text-center p-8 glass-panel rounded-3xl"><i class="fas fa-box-open text-4xl text-gray-300 mb-3"></i><p class="text-sm font-bold text-gray-500">এই এলাকায় আজকের কোনো ইফতার আপডেট নেই!</p></div>'; return; }
+  
+  c.innerHTML = fFeed.map(p => {
+    let walkMins = Math.ceil(p.distKm * 12); 
+    let distStr = p.distKm < 1 ? ((p.distKm*1000).toFixed(0) + ' মি.') : (p.distKm.toFixed(2) + ' কি.মি.');
+    let bnDist = distStr.replace(/\d/g, x => bnDigits[x]);
+    let bnTime = walkMins.toString().replace(/\d/g, x => bnDigits[x]);
+    
+    return `
+    <div onclick="openViewModal('${p.id}')" class="glass-panel p-5 rounded-3xl shadow-sm cursor-pointer hover:shadow-lg transition-all relative overflow-hidden group">
+      <div class="flex justify-between items-start mb-2">
+        <div class="pr-20">
+          <h3 class="font-extrabold text-emerald-950 text-base leading-tight group-hover:text-emerald-700 transition-colors">${p.mosques?.name || 'অজানা স্থান'}</h3>
+          <p class="text-xs text-gray-600 mt-1.5 flex items-start gap-1"><i class="fas fa-map-marker-alt mt-0.5 text-emerald-600"></i> <span>${p.mosques?.address || ''}</span></p>
+        </div>
+      </div>
+      <div class="absolute top-5 right-4 text-right">
+          <div class="bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-900 text-[10px] font-extrabold px-3 py-1.5 rounded-xl border border-emerald-300 mb-1.5 shadow-sm"><i class="fas fa-route"></i> ${bnDist}</div>
+          <div class="text-[10px] font-bold text-gray-500"><i class="fas fa-walking"></i> ~${bnTime} মিনিট</div>
+      </div>
+      <div class="bg-white/60 p-3.5 rounded-2xl border border-white mt-3 shadow-inner"><p class="text-sm text-gray-900 font-bold line-clamp-2">🍲 ${p.items.replace('দাতা: ', '👤 ')}</p></div>
+    </div>
+  `}).join('');
+}
+
+function renderPins() {
+  if(!markersGroup) return; markersGroup.clearLayers();
+  feed.forEach(p => {
+    if(p.mosques?.lat && p.mosques?.lng) {
+      let menuShow = p.items;
+      if(menuShow.startsWith('দাতা: ')) menuShow = menuShow.split('\nমেন্যু: ')[1] || menuShow;
+
+      let icon = L.divIcon({
+          className: 'custom-div-icon', 
+          html: `<div class="map-text-marker" onclick="openViewModal('${p.id}')">
+                    <i class="fas fa-map-marker-alt pin-icon"></i>
+                    <div class="info-text">ইফতার আছে!</div>
+                    <div class="menu-text">${menuShow}</div>
+                 </div>`, 
+          iconSize:[0,0]
+      });
+      markersGroup.addLayer(L.marker([p.mosques.lat, p.mosques.lng], {icon: icon}));
+    }
+  });
+}
+
+function compressImg(file, mw) {
+  return new Promise(res => {
+    let rd = new FileReader(); rd.onload = e => {
+      let img = new Image(); img.onload = () => {
+        let w = img.width, h = img.height; if(w > mw) { h = (h * mw)/w; w = mw; }
+        let cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h); cv.toBlob(res, 'image/webp', 0.7); 
+      }; img.src = e.target.result;
+    }; rd.readAsDataURL(file);
+  });
+}
+
+async function handleImg(input, type) {
+  let file = input.files[0]; if(!file) return;
+  document.getElementById(type+'ImageLabel').classList.replace('border-gray-400', 'border-emerald-500');
+  document.getElementById(type+'ImageLabel').classList.replace('bg-white/50', 'bg-emerald-50/90');
+  document.getElementById(type+'ImageIcon').classList.replace('text-gray-500', 'text-emerald-500');
+  let blob = await compressImg(file, type==='mosque'?800:600);
+  type==='mosque' ? mosqBlob=blob : foodBlob=blob;
+}
+
+// --- 🚀 Submit & Save ---
+document.getElementById('iftarForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if(!isNetworkOk()) return;
+  
+  let eid = document.getElementById('editMosqueId').value;
+  let pName = document.getElementById('providerName').value.trim();
+  let pPhone = document.getElementById('providerPhone').value.trim(); // 🔥 Phone
+  let mName = document.getElementById('mosqueName').value;
+  let items = document.getElementById('iftarItems').value;
+  if(!eid && !mosqBlob) return toast("❌ ছবি দেওয়া বাধ্যতামূলক!");
+  
+  let btn = document.getElementById('submitBtn'), orig = document.getElementById('submitBtnText').innerText;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> সেভ হচ্ছে...'; btn.disabled = true;
+  
+  try {
+    let tgM = null, tgF = null;
+    let upTg = async (b, fn) => {
+      let fd = new FormData(); fd.append('chat_id', __V__.c()); fd.append('photo', b, fn);
+      let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/sendPhoto', {method:'POST', body:fd});
+      let d = await r.json(); return d.ok ? d.result.photo.pop().file_id : null;
+    };
+    
+    if(mosqBlob) tgM = await upTg(mosqBlob, 'msq.webp');
+    if(foodBlob) tgF = await upTg(foodBlob, 'food.webp');
+    
+    let today = new Date(Date.now() + 6*3600000).toISOString().split('T')[0];
+    let mid = eid, su = __V__.u(), sh = __V__.h();
+    
+    if(!mid) {
+      let mr = await fetch(su+'/rest/v1/mosques?name=eq.'+encodeURIComponent(mName), {headers: sh});
+      let md = await mr.json();
+      if(md && md.length) {
+        mid = md[0].id; 
+        if(!md[0].image_url && tgM) await fetch(su+'/rest/v1/mosques?id=eq.'+mid, {method:'PATCH', headers:sh, body:JSON.stringify({image_url: tgM})});
+      } else {
+        let ir = await fetch(su+'/rest/v1/mosques', {method:'POST', headers:sh, body:JSON.stringify({name:mName, lat:selMapLoc?selMapLoc.lat:uLoc.lat, lng:selMapLoc?selMapLoc.lng:uLoc.lng, address:curAddr, image_url:tgM})});
+        let id = await ir.json(); if(id && id.length) mid = id[0].id;
+      }
+    } else if(tgM) {
+      await fetch(su+'/rest/v1/mosques?id=eq.'+mid, {method:'PATCH', headers:sh, body:JSON.stringify({image_url: tgM})});
+    }
+    
+    if(mid) {
+      // 🔥 Phone number appended to items string
+      let finalItems = `দাতা: ${pName} 📞 ${pPhone}\nমেন্যু: ${items}`;
+      let pl = {mosque_id: mid, date: today, items: finalItems}; if(tgF) pl.food_image_url = tgF;
+      await fetch(su+'/rest/v1/iftar_updates', {method:'POST', headers:Object.assign({}, sh, {'Prefer':'resolution=merge-duplicates'}), body:JSON.stringify(pl)});
+    }
+    
+    // Clear cache to force refresh
+    localStorage.removeItem('iftarTracker_feed');
+    await fetchFeed(); hideForm(); 
+    confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 }, zIndex: 3000 });
+    toast(eid ? '✅ আপডেট সফল!' : '✅ ইফতার সফলভাবে যোগ হয়েছে!');
+  } catch(err) { toast("❌ ইন্টারনেট কানেকশন এরর!"); }
+  finally { btn.innerHTML = `<span id="submitBtnText">${orig}</span>`; btn.disabled = false; }
+});
+
+// --- Modal, Share & Route Throttle ---
+async function getTgImg(fid) {
+  if(!fid) return null;
+  try {
+    let r = await fetch('https://api.telegram.org/bot'+__V__.t()+'/getFile?file_id='+fid);
+    let d = await r.json(); if(d.ok) return 'https://api.telegram.org/file/bot'+__V__.t()+'/'+d.result.file_path;
+  } catch(e){} return null;
+}
+
+async function openViewModal(pid, fly = false) {
+  viewPost = feed.find(p => p.id === pid); if(!viewPost) return;
+  if(fly && viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 19, {animate:true});
+  
+  document.getElementById('viewModal').classList.remove('hidden');
+  document.getElementById('modalDistDisplay').classList.add('hidden'); 
+  document.getElementById('viewMosqueName').innerText = viewPost.mosques?.name || '';
+  document.getElementById('viewAddress').innerText = viewPost.mosques?.address || '';
+  document.getElementById('viewItems').innerText = viewPost.items;
+  
+  document.getElementById('viewMosqueImg').classList.add('hidden'); document.getElementById('mosqueImgLoader').classList.remove('hidden');
+  if(viewPost.mosques?.image_url) { let url = await getTgImg(viewPost.mosques.image_url); if(url) { document.getElementById('viewMosqueImg').src = url; document.getElementById('viewMosqueImg').classList.remove('hidden'); } }
+  document.getElementById('mosqueImgLoader').classList.add('hidden');
+  
+  let fs = document.getElementById('foodImgSection');
+  if(viewPost.food_image_url) {
+    fs.classList.remove('hidden'); document.getElementById('viewFoodImg').classList.add('hidden'); document.getElementById('foodImgLoader').classList.remove('hidden');
+    let fu = await getTgImg(viewPost.food_image_url); if(fu) { document.getElementById('viewFoodImg').src = fu; document.getElementById('viewFoodImg').classList.remove('hidden'); }
+    document.getElementById('foodImgLoader').classList.add('hidden');
+  } else fs.classList.add('hidden');
+}
+
+function closeModal() { document.getElementById('viewModal').classList.add('hidden'); if(routeLine) map.removeLayer(routeLine); }
+function hideForm() { document.getElementById('formSection').classList.add('hidden'); if(clickMark) map.removeLayer(clickMark); document.getElementById('iftarForm').reset(); mosqBlob=null; foodBlob=null; }
+
+function openEdit() {
+  if(!viewPost) return; 
+  if(!isLocationVerified) return requestLocationPrompt(); 
+  if(!checkGeofence(viewPost.mosques.lat, viewPost.mosques.lng)) return toast("❌ আপনি এই স্থান থেকে ১ কি.মি. এর বাইরে আছেন। এডিট করা যাবে না!"); 
+  
+  closeModal();
+  document.getElementById('editMosqueId').value = viewPost.mosques?.id || '';
+  document.getElementById('mosqueName').value = viewPost.mosques?.name || ''; document.getElementById('mosqueName').disabled = true;
+  
+  let itmTxt = viewPost.items, pName = "", pPhone = "";
+  if(itmTxt.startsWith('দাতা: ')) { 
+      let parts = itmTxt.split('\nমেন্যু: '); 
+      let topRow = parts[0].replace('দাতা: ', '').trim();
+      let phoneSplit = topRow.split(' 📞 ');
+      pName = phoneSplit[0] || '';
+      pPhone = phoneSplit[1] || '';
+      itmTxt = parts[1] || ''; 
+  }
+  document.getElementById('providerName').value = pName; document.getElementById('providerName').disabled = true; 
+  document.getElementById('providerPhone').value = pPhone; document.getElementById('providerPhone').disabled = true; // Phone protected
+  document.getElementById('iftarItems').value = itmTxt;
+  document.getElementById('mosqueImgReq').innerText = '(ঐচ্ছিক)';
+  document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit text-yellow-500"></i> ইফতার আপডেট করুন';
+  document.getElementById('formSection').classList.remove('hidden');
+  if(viewPost.mosques?.lat) map.flyTo([viewPost.mosques.lat, viewPost.mosques.lng], 18, {animate:true});
+}
+
+function showModalDistance() {
+  if(!viewPost || !viewPost.mosques || !viewPost.mosques.lat) return toast("লোকেশন পাওয়া যায়নি!");
+  if(!isLocationVerified) return requestLocationPrompt();
+  document.getElementById('modalDistDisplay').classList.remove('hidden');
+  document.getElementById('modalDistVal').innerHTML = `<div class="flex flex-col gap-1.5 items-center"><i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i> রাস্তা মাপা হচ্ছে...</div>`;
+  updateModalDistance();
+}
+
+let lastRouteTime = 0;
+async function throttledUpdateModalDistance() { let now = Date.now(); if(now - lastRouteTime < 5000) return; lastRouteTime = now; await updateModalDistance(); }
+
+async function updateModalDistance() {
+  if(!viewPost || !viewPost.mosques || !viewPost.mosques.lat) return;
+  let tLat = viewPost.mosques.lat, tLng = viewPost.mosques.lng;
+  try {
+    let url = `https://router.project-osrm.org/route/v1/driving/${uLoc.lng},${uLoc.lat};${tLng},${tLat}?overview=full&geometries=geojson`;
+    let res = await fetch(url); let data = await res.json();
+    if(data.routes && data.routes.length > 0) {
+        let route = data.routes[0];
+        let distKm = (route.distance / 1000).toFixed(2).replace(/\d/g, x => bnDigits[x]);
+        let durSecs = route.duration, dH = Math.floor(durSecs/3600), dM = Math.floor((durSecs%3600)/60), dS = Math.floor(durSecs%60);
+        let timeStr = `${dH>0?dH+' ঘণ্টা ':''}${dM} মিনিট ${dS} সেকেন্ড`.replace(/\d/g, x => bnDigits[x]);
+        
+        document.getElementById('modalDistVal').innerHTML = `<div class="flex items-center gap-2"><i class="fas fa-car text-blue-600"></i> পথ: ${distKm} কি.মি.</div><div class="flex items-center gap-2 text-gray-600 mt-1"><i class="fas fa-clock"></i> সময়: ${timeStr}</div>`;
+        if(routeLine) map.removeLayer(routeLine);
+        let coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+        routeLine = L.polyline(coords, {color: '#2563eb', weight: 6, opacity: 0.8, className: 'route-line'}).addTo(map);
+        map.fitBounds(routeLine.getBounds(), {padding: [50, 50]});
+    } else throw new Error("No route");
+  } catch(e) {
+    let dist = (L.latLng(uLoc.lat, uLoc.lng).distanceTo(L.latLng(tLat, tLng))/1000).toFixed(2).replace(/\d/g, x => bnDigits[x]);
+    document.getElementById('modalDistVal').innerHTML = `✈️ সোজা দূরত্ব: ${dist} কি.মি.`;
+  }
+}
+
+// 🔥 Deep Linking Share API
+function doShare() {
+  if(!viewPost) return;
+  let deepLink = window.location.origin + window.location.pathname + "?id=" + viewPost.id;
+  let text = `🍲 ${viewPost.mosques.name} এ আজ ইফতার আছে!\n\n${viewPost.items}\n\n📍 ${viewPost.mosques.address}\n\nম্যাপে দেখতে লিংকে ক্লিক করুন:\n${deepLink}`;
+  if(navigator.share) navigator.share({title:'Iftar Tracker BD', text:text}).catch(()=>{});
+  else { if(navigator.clipboard) navigator.clipboard.writeText(text); toast('📋 লিংক ও মেন্যু কপি হয়েছে!'); }
+}
+
+function toast(msg, time = 3000) { let t = document.createElement('div'); t.className = 'toast'; t.innerText = msg; document.body.appendChild(t); setTimeout(() => t.remove(), time); }
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+</script>
+</body>
+</html>
